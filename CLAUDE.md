@@ -29,12 +29,12 @@ cp .env.example .env  # Add your API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY)
 - **Docs**: See `docs/` for detailed guides
 
 ## Code Quality Tools
-- **Type checking**: `pyright` (basic mode, not overly strict during prototype)
-- **Formatting**: `ruff format .` (auto-format code)
-- **Linting**: `ruff check .` (lint with auto-fix: `ruff check --fix .`)
+- **Formatting**: `uv run ruff format .`
+- **Linting**: `uv run ruff check .`
+- **Type checking**: `uv run pyright` (basic mode)
 - **Pre-commit**: `pre-commit install` (auto-run checks on commit)
 - All configuration in `pyproject.toml`
-- **📖 See**: `docs/pre-commit-hooks.md` for detailed pre-commit documentation
+- **📖 See**: `docs/pre-commit-hooks.md` for pre-commit documentation
 
 ## Testing
 - No formal test suite yet (prototype phase)
@@ -64,9 +64,9 @@ uv add <package>     # Add new dependency
 uv add --dev <pkg>   # Add dev dependency
 
 # Code quality
-ruff format .        # Format code
-ruff check --fix .   # Lint and auto-fix
-pyright              # Type check
+uv run ruff format .   # Format code
+uv run ruff check .    # Lint code
+uv run pyright         # Type check
 pre-commit run --all-files  # Run all pre-commit hooks
 
 # Testing (when implemented)
