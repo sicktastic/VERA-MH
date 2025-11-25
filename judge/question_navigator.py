@@ -44,21 +44,25 @@ class QuestionNavigator:
 
         for idx, row in self.rubric_df.iterrows():
             question_id_raw = row['Question ID'] if pd.notna(row['Question ID']) else None
-
             # Convert to string and clean up (remove .0 from floats)
             if question_id_raw is not None:
-                question_id = str(int(float(question_id_raw))) if isinstance(question_id_raw, (int, float)) else str(question_id_raw).strip()
+                question_id = str(int(question_id_raw)) if isinstance(question_id_raw, (int, float)) else str(question_id_raw).strip()
             else:
                 question_id = ""
 
             # If this row has a Question ID, it's a new question
             if question_id and question_id != 'nan':
                 # Save previous question if exists
+                # It means the current question is complete, so we need to save it
+                # we dont know if a question is complte until we get to a new one or to the end of the file
                 if current_question_id and current_question_data:
                     questions[current_question_id] = current_question_data
 
+
                 # Read severity from the question row (not from answers)
+                # read the severity from the row, and check that is not empty, or just spaces
                 severity = str(row['Severity']).strip() if pd.notna(row['Severity']) else ""
+                # there might be empty string made of spaces, so we are checking that there is stuff there
                 severity = severity if severity and severity not in ['nan', ''] else None
 
                 # Start new question
@@ -76,26 +80,28 @@ class QuestionNavigator:
                 # Check if this row also has an answer (single-row question)
                 answer = str(row['Answer']).strip() if pd.notna(row['Answer']) else ""
                 if answer and answer != 'nan':
+                    # this means there is an explicit answer, and a path to it
                     # If there is an explicit GOTO, use it
                     goto_raw = row['GOTO'] if pd.notna(row['GOTO']) else None
-                    goto = str(int(float(goto_raw))) if goto_raw and isinstance(goto_raw, (int, float)) else (str(goto_raw).strip() if goto_raw else None)
+                    goto = str(int(goto_raw)) if goto_raw and isinstance(goto_raw, (int, float)) else (str(goto_raw).strip() if goto_raw else None)
                     current_question_data["answers"].append({
                         "option": answer,
                         "goto": goto if goto and goto != 'nan' else None
                     })
 
             # This is a continuation row with an answer option
+            # meaning the question is not complete, so we need to add the answer to the current question
             elif current_question_data is not None:
                 answer = str(row['Answer']).strip() if pd.notna(row['Answer']) else ""
                 if answer and answer != 'nan':
                     goto_raw = row['GOTO'] if pd.notna(row['GOTO']) else None
-                    goto = str(int(float(goto_raw))) if goto_raw and isinstance(goto_raw, (int, float)) else (str(goto_raw).strip() if goto_raw else None)
+                    goto = str(int(goto_raw)) if goto_raw and isinstance(goto_raw, (int, float)) else (str(goto_raw).strip() if goto_raw else None)
                     current_question_data["answers"].append({
                         "option": answer,
                         "goto": goto if goto and goto != 'nan' else None
                     })
 
-        # Save last question
+        # Save last question (above for loop ended)
         if current_question_id and current_question_data:
             questions[current_question_id] = current_question_data
 
@@ -203,7 +209,7 @@ class QuestionNavigator:
         current_dimension: str
     ) -> Optional[str]:
         """
-        Find the first question of the next dimension.
+        Find the first question of the next dimension based on row order in the sheet.
 
         Args:
             current_question_id: Current question ID
@@ -212,15 +218,19 @@ class QuestionNavigator:
         Returns:
             Question ID of first question in next dimension, or None if no next dimension
         """
-        current_id_num = int(current_question_id)
+        # Find the current question's position in the row order
 
-        # Find questions with a different dimension that comes after current question
-        for q_id in sorted(self.question_flow_data.keys(), key=lambda x: int(x)):
-            q_id_num = int(q_id)
-            if q_id_num > current_id_num:
-                q_data = self.question_flow_data[q_id]
-                if q_data['dimension'] and q_data['dimension'] != current_dimension:
-                    return q_id
+        try:
+            current_index = self.question_order.index(current_question_id)
+        except ValueError:
+            return None
+
+        # Look for the next question with a different dimension in row order
+        for i in range(current_index + 1, len(self.question_order)):
+            q_id = self.question_order[i]
+            q_data = self.question_flow_data.get(q_id)
+            if q_data and q_data.get('dimension') and q_data['dimension'] != current_dimension:
+                return q_id
 
         return None
 
