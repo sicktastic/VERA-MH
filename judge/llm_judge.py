@@ -10,14 +10,6 @@ from judge.question_navigator import QuestionNavigator
 class LLMJudge:
     """Evaluates conversations using LLM-based scoring with rubrics."""
     
-    # Supported judge models by provider
-    # TODO: this should go in some config file
-    SUPPORTED_JUDGES = {
-        "openai": ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"],
-        "claude": ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "claude-3-sonnet-20240229"],
-        "gemini": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"],
-        "llama": ["llama3:8b", "llama3:70b", "llama2:13b"]
-    }
     
     def __init__(
         self, 
@@ -98,6 +90,7 @@ class LLMJudge:
         # Create evaluator with conversation context
         self.conversation_file = conversation_file
         conversation = self.load_conversation(conversation_file)
+        # this actually instantiates the LLM client
         self.evaluator = self._create_evaluator(conversation, conversation_file, verbose)
     
     
@@ -140,7 +133,7 @@ class LLMJudge:
             output_folder: Folder to save evaluation results
             auto_save: Whether to automatically save results to files
             verbose: Whether to print progress information
-            start_question_id: Question ID to start with (default: "4")
+            start_question_id: Question ID to start with (default: first question in rubric)
 
         Returns:
             Dictionary with dimension names as keys and evaluation results as values
@@ -149,17 +142,14 @@ class LLMJudge:
         if self.question_flow_data is None:
             raise ValueError("Question flow rubric not loaded. Check rubric file exists.")
 
-        # Validate that the conversation_file matches the one used in initialization
-        if conversation_file != self.conversation_file:
-            raise ValueError(
-                f"Conversation file mismatch. Judge initialized with '{self.conversation_file}', "
-                f"but evaluation requested for '{conversation_file}'. Create a new LLMJudge instance for each conversation."
-            )
-
         # Step 1: Navigate through questions and collect answers
-        start_question_id = start_question_id or "4"
+        if start_question_id is None:
+            if not self.question_order:
+                raise ValueError("No questions found in rubric")
+            start_question_id = self.question_order[0]
         dimension_answers = {}
 
+        # this function returns if one of the questions triggered 'Not Relevant' for all the remaining dimensions
         not_relevant_question_id = await self._ask_all_questions(
             self.evaluator, start_question_id, dimension_answers, verbose
         )
