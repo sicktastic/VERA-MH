@@ -162,11 +162,14 @@ class QuestionNavigator:
                 if ans['option'].lower() == answer_text.lower():
                     goto_value = ans.get('goto')
 
-                    # If GOTO has a value, use it (could be question ID, "END", or "ASSIGN_END")
+                    # If GOTO has a value, use it (could be question ID, "END", "ASSIGN_END", or "NOT_RELEVANT>>{ID}")
                     if goto_value:
-                        # Special values "END" and "ASSIGN_END" will be handled by caller
-                        if goto_value not in ["END", "ASSIGN_END"]:
+                        # Special values "END", "ASSIGN_END", and "NOT_RELEVANT>>" will be handled by caller
+                        if goto_value not in ["END", "ASSIGN_END"] and not goto_value.startswith("NOT_RELEVANT>>"):
                             next_question_id = goto_value
+                        elif goto_value.startswith("NOT_RELEVANT>>"):
+                            # Extract the question ID after NOT_RELEVANT>>
+                            next_question_id = goto_value.split(">>")[1]
                     else:
                         # GOTO is empty, go to next row
                         next_question_id = self._get_next_row_question(current_question_id)

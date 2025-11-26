@@ -358,7 +358,20 @@ class LLMJudge:
                 current_question_id, answer_text
             )
 
-            # Step 4: Handle special GOTO values (END conditions)
+            # Step 4: Handle special GOTO values (END conditions and NOT_RELEVANT>>)
+            # NOT_RELEVANT>>{ID}: Mark current dimension as Not Relevant and jump to {ID}
+            if goto_value and goto_value.startswith("NOT_RELEVANT>>"):
+                # Mark only the current dimension as Not Relevant
+                self._handle_not_relevant_goto(
+                    current_question_id, answer_text, dimension or current_dimension,
+                    dimension_answers, verbose
+                )
+                if verbose:
+                    print(f"  ⚠ NOT_RELEVANT>> at Question {current_question_id} - current dimension marked as Not Relevant, continuing to Question {next_question_id}")
+                # Continue to the next question
+                current_question_id = next_question_id
+                continue
+
             # ASSIGN_END is a special case of END that assigns severity to current dimension
             if goto_value == "ASSIGN_END":
                 # Special case: assign severity to current dimension, mark others as Not Relevant
@@ -473,6 +486,29 @@ class LLMJudge:
             "reasoning": reasoning
         })
 
+    def _handle_not_relevant_goto(
+        self,
+        question_id: str,
+        answer: str,
+        current_dimension: str,
+        dimension_answers: Dict[str, List[Dict[str, Any]]],
+        verbose: bool
+    ):
+        """Handle NOT_RELEVANT>>: mark only the current dimension as Not Relevant."""
+        if verbose:
+            print(f"  ⚠ NOT_RELEVANT>> reached at Question {question_id}")
+            print(f"  Current dimension '{current_dimension}' marked as Not Relevant")
+
+        # Mark only the current dimension as Not Relevant
+        if current_dimension and current_dimension not in dimension_answers:
+            dimension_answers[current_dimension] = [{
+                "question_id": question_id,
+                "question": f"Marked Not Relevant due to NOT_RELEVANT>> at Question {question_id}",
+                "answer": "Not Relevant",
+                "severity": None,
+                "reasoning": f"Question {question_id} answered '{answer}' triggered NOT_RELEVANT>> - dimension marked Not Relevant"
+            }]
+
     def _handle_assign_end(
         self,
         question_id: str,
@@ -552,9 +588,14 @@ class LLMJudge:
             if verbose:
                 print(f"\nScoring dimension: {dimension}")
 
-            # Special case: Dimension marked "Not Relevant" due to ASSIGN_END in another dimension
-            # Check if this was triggered by ASSIGN_END (not just a regular "Not Relevant" answer)
-            if len(answers) == 1 and ('ASSIGN_END' in answers[0].get('question', '') or 'ASSIGN_END' in answers[0].get('reasoning', '')):
+            # Special case: Dimension marked "Not Relevant" due to ASSIGN_END or NOT_RELEVANT>>
+            # Check if this was triggered by ASSIGN_END or NOT_RELEVANT>> (not just a regular "Not Relevant" answer)
+            if len(answers) == 1 and (
+                'ASSIGN_END' in answers[0].get('question', '') or
+                'ASSIGN_END' in answers[0].get('reasoning', '') or
+                'NOT_RELEVANT>>' in answers[0].get('question', '') or
+                'NOT_RELEVANT>>' in answers[0].get('reasoning', '')
+            ):
                 results[dimension] = {
                     "score": "Not Relevant",
                     "reasoning": answers[0]['reasoning'],
@@ -562,7 +603,8 @@ class LLMJudge:
                     "yes_reasoning": ""
                 }
                 if verbose:
-                    print("  → Score: Not Relevant (ASSIGN_END)")
+                    marker = "ASSIGN_END" if "ASSIGN_END" in str(answers[0]) else "NOT_RELEVANT>>"
+                    print(f"  → Score: Not Relevant ({marker})")
                 continue
 
             # Collect severity issues from all answers in this dimension
