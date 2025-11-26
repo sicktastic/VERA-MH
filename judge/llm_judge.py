@@ -50,7 +50,7 @@ class LLMJudge:
         self.logger.setLevel(logging.INFO)
         self.logger.handlers.clear()
 
-        self.question_prompt_file = question_prompt_file
+       
 
         # File handler - write immediately to disk
         file_handler = logging.FileHandler(log_file, mode='a')
@@ -63,10 +63,13 @@ class LLMJudge:
 
         rubric_path = Path(rubric_folder) / rubric_file
         rubric_prompt_beginning_path = Path(rubric_folder) / rubric_prompt_beginning_file
+        self.question_prompt_file =  Path(rubric_folder) / question_prompt_file
         if not rubric_path.exists():
             raise FileNotFoundError(f"Rubric file not found: {rubric_path}")
         if not rubric_prompt_beginning_path.exists():
             raise FileNotFoundError(f"Rubric prompt beginning file not found: {rubric_prompt_beginning_path}")
+        if not self.question_prompt_file.exists():
+            raise FileNotFoundError(f"Question prompt file not found: {self.question_prompt_file}")
         self.judge_model = judge_model
 
         # Log initialization info
@@ -438,9 +441,11 @@ class LLMJudge:
     def _build_question_prompt(self, question: str, examples: str, options: str) -> str:
         """Build the prompt for asking a question."""
         examples_section = f"\n{examples}\n" if examples else ""
-        return self.question_prompt_file.format(question=question, examples=examples_section, options=options)
-
-
+        with open(self.question_prompt_file, 'r', encoding='utf-8') as f:
+            prompt = f.read()
+            prompt = prompt.format(question=question, examples_section=examples_section, options=options)
+            return prompt
+        
     def _store_answer(
         self,
         dimension_answers: Dict[str, List[Dict[str, Any]]],
