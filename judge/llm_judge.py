@@ -10,19 +10,6 @@ from judge.question_navigator import QuestionNavigator
 class LLMJudge:
     """Evaluates conversations using LLM-based scoring with rubrics."""
 
-    # Supported judge models by provider
-    # TODO: this should go in some config file
-    SUPPORTED_JUDGES = {
-        "openai": ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"],
-        "claude": [
-            "claude-3-5-sonnet-20241022",
-            "claude-3-opus-20240229",
-            "claude-3-sonnet-20240229",
-        ],
-        "gemini": ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro"],
-        "llama": ["llama3:8b", "llama3:70b", "llama2:13b"],
-    }
-
     def __init__(
         self,
         judge_model: str,
