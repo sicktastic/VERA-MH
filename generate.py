@@ -104,6 +104,7 @@ if __name__ == "__main__":
         "--user-agent",
         "-u",
         help="Model for the user-agent. Examples: claude-3-5-sonnet-20241022, gemini-1.5-pro, llama3:8b",
+        required=True,
     )
     parser.add_argument(
         "--user-agent-extra-params",
@@ -117,6 +118,7 @@ if __name__ == "__main__":
         "--provider-agent",
         "-p",
         help="Model for the provider-agent. Examples: claude-3-5-sonnet-20241022, gemini-1.5-pro, llama3:8b",
+        required=True,
     )
 
     parser.add_argument(
@@ -131,16 +133,17 @@ if __name__ == "__main__":
         "--runs",
         "-r",
         help="Number of runs per prompt",
-        default=5,
+        default=1,
         type=int,
+        required=True,
     )
 
     parser.add_argument(
         "--turns",
         "-t",
         help="Number of turns per conversation",
-        default=30,
         type=int,
+        required=True,
     )
 
     parser.add_argument(
