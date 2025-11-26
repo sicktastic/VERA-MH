@@ -43,6 +43,32 @@ cp .env.example .env  # Add your API keys (ANTHROPIC_API_KEY, OPENAI_API_KEY)
 - Run tests: `pytest` (when tests exist)
 - Coverage: `pytest --cov` (when needed)
 
+### Claude Code Testing Configuration
+The project uses Claude Code with custom testing commands and agents:
+- **Slash commands** (`.claude/commands/`) - User-facing testing workflows
+- **test-engineer agent** (`.claude/agents/`) - Automated testing in parallel
+
+**Maintenance guidelines:**
+1. **When testing patterns change** (pytest config, fixtures, conventions):
+   - Review and update relevant slash commands (`/test`, `/create-test`, etc.)
+   - Agent reads command files directly, so updates auto-propagate
+   - Only update agent if commands are added/removed
+
+2. **When adding new testing commands:**
+   - Add to `.claude/commands/`
+   - Update `.claude/commands/README.md` and main `README.md`
+   - If it contains testing patterns, add reference to `.claude/agents/test-engineer.md`
+   - Run `/sync-testing-docs` to verify everything is in sync
+
+3. **Audit testing documentation:**
+   - Use `/sync-testing-docs` command to check for inconsistencies
+   - Recommended after infrastructure changes or quarterly maintenance
+
+**Why this matters:**
+- Agents use slash commands as living documentation (via Read tool)
+- Keeping them in sync ensures consistent testing patterns
+- Single source of truth prevents duplication and drift
+
 ## Tech Stack
 - **LLM Framework**: LangChain (multi-provider support)
 - **Supported Providers**: Anthropic, OpenAI, Google GenAI
