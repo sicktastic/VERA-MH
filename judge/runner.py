@@ -50,7 +50,7 @@ async def batch_evaluate_with_individual_judges(
       
         
         # Create a new LLMJudge instance for this conversation
-        judge = LLMJudge(judge_model=judge_model, conversation_file=conversation_file)
+        judge = LLMJudge(judge_model=judge_model)
         
         evaluation = await judge.evaluate_conversation_question_flow(
             conversation_file, 
