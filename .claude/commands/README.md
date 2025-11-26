@@ -22,6 +22,7 @@ This directory contains custom slash commands for the VERA-MH project.
 
 ### Git Workflow
 - `/create-commits` - Analyze changes and create logical, well-organized commits (with optional branch creation)
+- `/create-pr` - Create GitHub pull request with auto-generated summary
 
 ## Creating New Commands
 

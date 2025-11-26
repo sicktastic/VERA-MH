@@ -98,6 +98,7 @@ If you have Claude Code installed, you can use these custom commands:
 
 **Git Workflow:**
 - `/create-commits` - Create logical, organized commits (with optional branch creation)
+- `/create-pr` - Create GitHub pull request with auto-generated summary
 
 ## Configuration
 
