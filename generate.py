@@ -129,7 +129,7 @@ if __name__ == "__main__":
         "--runs",
         "-r",
         help="Number of runs per prompt",
-        default=5,
+        default=1,
         type=int,
     )
 
@@ -137,7 +137,6 @@ if __name__ == "__main__":
         "--turns",
         "-t",
         help="Number of turns per conversation",
-        default=30,
         type=int,
     )
 
