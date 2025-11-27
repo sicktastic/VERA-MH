@@ -12,6 +12,9 @@ class MockLLM(LLMInterface):
         responses: list[str] | None = None,
         system_prompt: Optional[str] = None,
         simulate_error: bool = False,
+        model_name: str = "mock-model",
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
     ):
         super().__init__(name, system_prompt)
         self.responses = responses or ["Mock response"]
@@ -19,6 +22,9 @@ class MockLLM(LLMInterface):
         self.calls: list[str] = []
         self.simulate_error = simulate_error
         self.last_response_metadata: Dict[str, Any] = {}
+        self.model_name = model_name
+        self.temperature = temperature
+        self.max_tokens = max_tokens
 
     async def generate_response(self, message: Optional[str] = None) -> str:
         """Return predetermined responses in sequence.
