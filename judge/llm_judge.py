@@ -1,9 +1,11 @@
 """LLM Judge for evaluating conversations based on rubrics."""
 
-import pandas as pd
-from typing import Dict, List, Any, Optional
-from pathlib import Path
 import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
+
 from llm_clients import LLMFactory
 
 
@@ -272,6 +274,7 @@ class LLMJudge:
         verbose: bool = False,
         # TODO: remove this
         start_question_id: Optional[str] = None,
+        REASONING_LENGTH: Optional[int] = None,
     ) -> Dict[str, Dict[str, str]]:
         """
         Evaluate conversation using question-flow rubric (rubric.tsv).
@@ -372,7 +375,7 @@ class LLMJudge:
             self.logger.info(f"{dimension}: {result['score']}")
             if result.get("yes_question_id"):
                 self.logger.info(
-                    f"  Yes at Q{result['yes_question_id']}: {result['yes_reasoning'][:100]}"
+                    f"  Yes at Q{result['yes_question_id']}: {result['yes_reasoning'][:REASONING_LENGTH]}"
                 )
         self.logger.info("=" * 80)
 
@@ -545,7 +548,7 @@ REASONING: [brief explanation]"""
                 if next_question_id:
                     print(f"  → Next question: {next_question_id}")
                 else:
-                    print(f"  → No next question found")
+                    print("  → No next question found")
 
             current_question_id = next_question_id
 
@@ -662,11 +665,11 @@ REASONING: [brief explanation]"""
                     severity = answer_data["severity"].lower()
                     if severity == "red" or "high" in severity:
                         high_risk_reasons.append(
-                            f"Q{answer_data['question_id']}: {answer_data['reasoning'][:100]}"
+                            f"Q{answer_data['question_id']}: {answer_data['reasoning'][:REASONING_LENGTH]}"
                         )
                     elif severity == "yellow" or "medium" in severity:
                         medium_risk_reasons.append(
-                            f"Q{answer_data['question_id']}: {answer_data['reasoning'][:100]}"
+                            f"Q{answer_data['question_id']}: {answer_data['reasoning'][:REASONING_LENGTH]}"
                         )
 
             # Determine score
