@@ -1,11 +1,13 @@
 """LLM Judge for evaluating conversations based on rubrics."""
 
-from typing import Dict, List, Any, Optional
-from pathlib import Path
 import logging
-from llm_clients import LLMFactory
-from judge.utils import load_rubric_structure
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 from judge.question_navigator import QuestionNavigator
+from judge.utils import load_rubric_structure
+from llm_clients import LLMFactory
+
 
 class LLMJudge:
     """Evaluates conversations using LLM-based scoring with rubrics."""
@@ -19,7 +21,7 @@ class LLMJudge:
         sep: str = "\t",
         log_file: Optional[str] = None,
         verbose: bool = False,
-        question_prompt_file: str = "question_prompt.txt"
+        question_prompt_file: str = "question_prompt.txt",
     ):
         """
         Initialize the LLM Judge.
@@ -40,6 +42,7 @@ class LLMJudge:
             log_dir = Path("logs")
             log_dir.mkdir(exist_ok=True)
             from datetime import datetime
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             log_file = str(log_dir / f"judge_{timestamp}.log")
 
@@ -47,26 +50,32 @@ class LLMJudge:
         self.logger.setLevel(logging.INFO)
         self.logger.handlers.clear()
 
-       
-
         # File handler - write immediately to disk
-        file_handler = logging.FileHandler(log_file, mode='a')
+        file_handler = logging.FileHandler(log_file, mode="a")
         file_handler.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         file_handler.setFormatter(formatter)
         self.logger.addHandler(file_handler)
 
         self.log_file = log_file
 
         rubric_path = Path(rubric_folder) / rubric_file
-        rubric_prompt_beginning_path = Path(rubric_folder) / rubric_prompt_beginning_file
-        self.question_prompt_file =  Path(rubric_folder) / question_prompt_file
+        rubric_prompt_beginning_path = (
+            Path(rubric_folder) / rubric_prompt_beginning_file
+        )
+        self.question_prompt_file = Path(rubric_folder) / question_prompt_file
         if not rubric_path.exists():
             raise FileNotFoundError(f"Rubric file not found: {rubric_path}")
         if not rubric_prompt_beginning_path.exists():
-            raise FileNotFoundError(f"Rubric prompt beginning file not found: {rubric_prompt_beginning_path}")
+            raise FileNotFoundError(
+                f"Rubric prompt beginning file not found: {rubric_prompt_beginning_path}"
+            )
         if not self.question_prompt_file.exists():
-            raise FileNotFoundError(f"Question prompt file not found: {self.question_prompt_file}")
+            raise FileNotFoundError(
+                f"Question prompt file not found: {self.question_prompt_file}"
+            )
         self.judge_model = judge_model
 
         # Log initialization info
@@ -75,7 +84,7 @@ class LLMJudge:
         self.logger.info(f"Rubric folder: {rubric_folder}")
         self.logger.info(f"Log file: {log_file}")
 
-        with open(rubric_prompt_beginning_path, 'r', encoding='utf-8') as f:
+        with open(rubric_prompt_beginning_path, "r", encoding="utf-8") as f:
             self.rubric_prompt_beginning = f.read()
 
         # Initialize question navigator (handles rubric parsing and navigation)
@@ -93,24 +102,23 @@ class LLMJudge:
         print(
             f"Loaded question-flow rubric with {len(self.question_flow_data)} questions"
         )
-    
-    
+
     def load_conversation(self, conversation_file: str) -> str:
         """
         Load conversation from file.
-        
+
         Args:
             conversation_file: Path to conversation file
-            
+
         Returns:
             Conversation text
         """
         conversation_path = Path(conversation_file)
-        
+
         if not conversation_path.exists():
             raise FileNotFoundError(f"Conversation file not found: {conversation_path}")
-        
-        with open(conversation_path, 'r', encoding='utf-8') as f:
+
+        with open(conversation_path, "r", encoding="utf-8") as f:
             return f.read()
 
     async def evaluate_conversation_question_flow(
@@ -119,7 +127,7 @@ class LLMJudge:
         output_folder: str,
         auto_save: bool = True,
         verbose: bool = False,
-        start_question_id: Optional[str] = None
+        start_question_id: Optional[str] = None,
     ) -> Dict[str, Dict[str, str]]:
         """
         Evaluate conversation using question-flow rubric.
@@ -141,7 +149,9 @@ class LLMJudge:
             Format: {dimension: {"score": str, "reasoning": str, ...}}
         """
         if self.question_flow_data is None:
-            raise ValueError("Question flow rubric not loaded. Check rubric file exists.")
+            raise ValueError(
+                "Question flow rubric not loaded. Check rubric file exists."
+            )
 
         # Load conversation and create evaluator
         conversation = self.load_conversation(conversation_file)
@@ -162,7 +172,9 @@ class LLMJudge:
         )
 
         # Step 2: Calculate final scores
-        results = self._calculate_results(not_relevant_question_id, dimension_answers, verbose)
+        results = self._calculate_results(
+            not_relevant_question_id, dimension_answers, verbose
+        )
 
         # Step 3: Log and save results
         self._log_final_results(results)
@@ -181,53 +193,83 @@ class LLMJudge:
         return response.strip()
 
     def _save_iterative_evaluation(
-        self,
-        results: Dict[str, Dict[str, str]],
-        output_file: Path,
-        sep: str = "\t"
+        self, results: Dict[str, Dict[str, str]], output_file: Path, sep: str = "\t"
     ):
         """Save iterative evaluation results to TSV file."""
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             # Write header
             f.write(f"Dimension{sep}Score{sep}Reasoning\n")
 
             # Write each dimension's results
             for dimension, result in results.items():
-                score = result['score']
-                reasoning = result['reasoning'].replace('\n', ' ').replace('\t', ' ')
+                score = result["score"]
+                reasoning = result["reasoning"].replace("\n", " ").replace("\t", " ")
                 f.write(f"{dimension}{sep}{score}{sep}{reasoning}\n")
 
-    
+    async def evaluate_conversation_question_flow(
+        self,
+        conversation_file: str,
+        output_folder: str,
+        auto_save: bool = True,
+        verbose: bool = False,
+        # TODO: remove this
+        start_question_id: Optional[str] = None,
+        reasoning_length: Optional[int] = None,
+    ) -> Dict[str, Dict[str, str]]:
+        """
+        Evaluate conversation using question-flow rubric (rubric.tsv).
 
-    def _create_evaluator(self, conversation: str, conversation_file: str, verbose: bool):
-        """Create and configure the LLM evaluator with conversation context."""
+        This method loads the conversation once and then navigates through
+        questions using GOTO logic and answer-based branching.
+
+        Args:
+            conversation_file: Path to conversation file
+            output_folder: Folder to save evaluation results
+            auto_save: Whether to automatically save results to files
+            verbose: Whether to print progress information
+            start_question_id: Question ID to start with (default: "4")
+            reasoning_length: Length of reasoning to save (default: None)
+
+        Returns:
+            Dictionary with dimension names as keys and evaluation results as values
+            Format: {dimension: {"score": str, "reasoning": str}}
+        """
+        if self.question_flow_data is None:
+            raise ValueError(
+                "Question flow rubric not loaded. Check rubric.tsv exists."
+            )
+
         # Log evaluation start
         self.logger.info("=" * 80)
         self.logger.info(f"Starting evaluation: {conversation_file}")
         self.logger.info(f"Model: {self.judge_model}")
         self.logger.info("=" * 80)
-        self.logger.info(f"CONVERSATION (length: {len(conversation)} chars):\n{conversation[:1000]}...")
+        self.logger.info(
+            f"CONVERSATION (length: {len(conversation)} chars):\n{conversation[:1000]}..."
+        )
 
         if verbose:
             print("Starting question-flow evaluation...")
 
         # Create conversation context prompt
-        conversation_context_prompt = self.rubric_prompt_beginning.format(conversation=conversation)
+        conversation_context_prompt = self.rubric_prompt_beginning.format(
+            conversation=conversation
+        )
         self.logger.info(f"SYSTEM PROMPT:\n{conversation_context_prompt[:500]}...")
 
         return LLMFactory.create_llm(
             model_name=self.judge_model,
             name="Question Flow Evaluator",
-            system_prompt=conversation_context_prompt
+            system_prompt=conversation_context_prompt,
         )
 
     def _calculate_results(
         self,
         not_relevant_question_id: Optional[str],
         dimension_answers: Dict[str, List[Dict[str, Any]]],
-        verbose: bool
+        verbose: bool,
     ) -> Dict[str, Dict[str, str]]:
         """Calculate final scores from collected answers."""
         # Handle early stopping: all dimensions become "Not Relevant"
@@ -236,27 +278,38 @@ class LLMJudge:
             # ASSIGN_END: other dimensions are marked with "ASSIGN_END" in their question/reasoning
             # Regular END: no ASSIGN_END markers, all dimensions should be marked as Not Relevant
             is_assign_end = any(
-                any('ASSIGN_END' in answer.get('question', '') or 'ASSIGN_END' in answer.get('reasoning', '')
-                    for answer in answers)
+                any(
+                    "ASSIGN_END" in answer.get("question", "")
+                    or "ASSIGN_END" in answer.get("reasoning", "")
+                    for answer in answers
+                )
                 for answers in dimension_answers.values()
             )
-            
+
             if is_assign_end:
                 # This was ASSIGN_END - current dimension gets severity, others already marked as Not Relevant
                 # Use normal scoring which will handle ASSIGN_END correctly
                 if verbose:
-                    print(f"\n⚠ Question {not_relevant_question_id} triggered ASSIGN_END - current dimension gets severity, others marked as Not Relevant")
-                return self._determine_dimension_scores(dimension_answers, verbose=verbose)
+                    print(
+                        f"\n⚠ Question {not_relevant_question_id} triggered ASSIGN_END - current dimension gets severity, others marked as Not Relevant"
+                    )
+                return self._determine_dimension_scores(
+                    dimension_answers, verbose=verbose
+                )
             else:
                 # This was regular END - all dimensions should be marked as Not Relevant
                 if verbose:
-                    print(f"\n⚠ Question {not_relevant_question_id} triggered 'Not Relevant' for all dimensions")
+                    print(
+                        f"\n⚠ Question {not_relevant_question_id} triggered 'Not Relevant' for all dimensions"
+                    )
                 return self._create_all_not_relevant_results(not_relevant_question_id)
 
         # Normal scoring based on collected answers
         return self._determine_dimension_scores(dimension_answers, verbose=verbose)
 
-    def _create_all_not_relevant_results(self, question_id: str) -> Dict[str, Dict[str, str]]:
+    def _create_all_not_relevant_results(
+        self, question_id: str
+    ) -> Dict[str, Dict[str, str]]:
         """Create results where all dimensions are 'Not Relevant' due to early stopping."""
         results = {}
         for dimension in self.dimensions:
@@ -264,7 +317,7 @@ class LLMJudge:
                 "score": "Not Relevant",
                 "reasoning": f"Question {question_id} triggered early stopping - all dimensions are Not Relevant per rubric rules.",
                 "yes_question_id": "",
-                "yes_reasoning": ""
+                "yes_reasoning": "",
             }
         return results
 
@@ -274,8 +327,10 @@ class LLMJudge:
         self.logger.info("FINAL RESULTS:")
         for dimension, result in results.items():
             self.logger.info(f"{dimension}: {result['score']}")
-            if result.get('yes_question_id'):
-                self.logger.info(f"  Yes at Q{result['yes_question_id']}: {result['yes_reasoning'][:100]}")
+            if result.get("yes_question_id"):
+                self.logger.info(
+                    f"  Yes at Q{result['yes_question_id']}: {result['yes_reasoning'][:reasoning_length]}"
+                )
         self.logger.info("=" * 80)
 
     def _save_results(
@@ -283,7 +338,7 @@ class LLMJudge:
         conversation_file: str,
         output_folder: str,
         results: Dict[str, Dict[str, str]],
-        verbose: bool
+        verbose: bool,
     ):
         """Save evaluation results to file."""
         conversation_name = Path(conversation_file).stem
@@ -297,7 +352,7 @@ class LLMJudge:
         self,
         start_question_id: str,
         dimension_answers: Dict[str, List[Dict[str, Any]]],
-        verbose: bool = False
+        verbose: bool = False,
     ) -> Optional[str]:
         """
         Navigate through all questions until END/ASSIGN_END or completion.
@@ -327,7 +382,9 @@ class LLMJudge:
             # TODO: consider adding tests when reading rubric?
             if current_question_id in visited_questions:
                 if verbose:
-                    print(f"⚠ Already visited question {current_question_id}, stopping.")
+                    print(
+                        f"⚠ Already visited question {current_question_id}, stopping."
+                    )
                 break
             visited_questions.add(current_question_id)
 
@@ -344,14 +401,18 @@ class LLMJudge:
             )
 
             # Update current dimension if this question has one
-            dimension = question_data.get('dimension')
+            dimension = question_data.get("dimension")
             if dimension:
                 current_dimension = dimension
 
             # Step 2: Store answer for this dimension
             self._store_answer(
-                dimension_answers, question_data, current_question_id,
-                answer_text, dimension or current_dimension, response
+                dimension_answers,
+                question_data,
+                current_question_id,
+                answer_text,
+                dimension or current_dimension,
+                response,
             )
 
             # Step 3: Determine next question
@@ -364,11 +425,16 @@ class LLMJudge:
             if goto_value and goto_value.startswith("NOT_RELEVANT>>"):
                 # Mark only the current dimension as Not Relevant
                 self._handle_not_relevant_goto(
-                    current_question_id, answer_text, dimension or current_dimension,
-                    dimension_answers, verbose
+                    current_question_id,
+                    answer_text,
+                    dimension or current_dimension,
+                    dimension_answers,
+                    verbose,
                 )
                 if verbose:
-                    print(f"  ⚠ NOT_RELEVANT>> at Question {current_question_id} - current dimension marked as Not Relevant, continuing to Question {next_question_id}")
+                    print(
+                        f"  ⚠ NOT_RELEVANT>> at Question {current_question_id} - current dimension marked as Not Relevant, continuing to Question {next_question_id}"
+                    )
                 # Continue to the next question
                 current_question_id = next_question_id
                 continue
@@ -377,11 +443,17 @@ class LLMJudge:
             if goto_value == "ASSIGN_END":
                 # Special case: assign severity to current dimension, mark others as Not Relevant
                 self._handle_assign_end(
-                    current_question_id, answer_text, dimension or current_dimension,
-                    dimension_answers, question_data, verbose
+                    current_question_id,
+                    answer_text,
+                    dimension or current_dimension,
+                    dimension_answers,
+                    question_data,
+                    verbose,
                 )
                 if verbose:
-                    print(f"  ⚠ ASSIGN_END reached at Question {current_question_id} - current dimension gets severity, others marked as Not Relevant")
+                    print(
+                        f"  ⚠ ASSIGN_END reached at Question {current_question_id} - current dimension gets severity, others marked as Not Relevant"
+                    )
                 # Return question_id to indicate END condition
                 # _calculate_results will distinguish ASSIGN_END from regular END by checking dimension_answers
                 return current_question_id
@@ -389,7 +461,9 @@ class LLMJudge:
             if goto_value == "END":
                 # Regular END: mark all dimensions as Not Relevant
                 if verbose:
-                    print(f"  ⚠ END reached at Question {current_question_id} - all dimensions will be marked as Not Relevant")
+                    print(
+                        f"  ⚠ END reached at Question {current_question_id} - all dimensions will be marked as Not Relevant"
+                    )
                 # Return question_id to trigger "Not Relevant" for all dimensions
                 return current_question_id
 
@@ -404,10 +478,7 @@ class LLMJudge:
         return None
 
     async def _ask_single_question(
-        self,
-        question_id: str,
-        question_data: Dict[str, Any],
-        verbose: bool
+        self, question_id: str, question_data: Dict[str, Any], verbose: bool
     ) -> tuple[str, str]:
         """
         Ask a single question and return the answer and full response.
@@ -415,16 +486,18 @@ class LLMJudge:
         Returns:
             Tuple of (answer_text, full_response)
         """
-        question_text = question_data['question']
-        examples_text = question_data.get('examples', '')
-        answers = question_data.get('answers', [])
- 
+        question_text = question_data["question"]
+        examples_text = question_data.get("examples", "")
+        answers = question_data.get("answers", [])
+
         if verbose:
-            dimension = question_data.get('dimension', '')
+            dimension = question_data.get("dimension", "")
             print(f"\nQuestion {question_id}: {dimension}")
 
         # Get answer options
-        answer_options = [ans['option'] for ans in answers] if answers else ["Yes", "No"]
+        answer_options = (
+            [ans["option"] for ans in answers] if answers else ["Yes", "No"]
+        )
         options_str = ", ".join(answer_options)
 
         # Build prompt
@@ -455,11 +528,13 @@ class LLMJudge:
     def _build_question_prompt(self, question: str, examples: str, options: str) -> str:
         """Build the prompt for asking a question."""
         examples_section = f"\n{examples}\n" if examples else ""
-        with open(self.question_prompt_file, 'r', encoding='utf-8') as f:
+        with open(self.question_prompt_file, "r", encoding="utf-8") as f:
             prompt = f.read()
-            prompt = prompt.format(question=question, examples_section=examples_section, options=options)
+            prompt = prompt.format(
+                question=question, examples_section=examples_section, options=options
+            )
             return prompt
-        
+
     def _store_answer(
         self,
         dimension_answers: Dict[str, List[Dict[str, Any]]],
@@ -467,7 +542,7 @@ class LLMJudge:
         question_id: str,
         answer: str,
         dimension: str,
-        response: str
+        response: str,
     ):
         """Store answer for dimension scoring."""
         if not dimension:
@@ -479,13 +554,15 @@ class LLMJudge:
         # Extract reasoning from the response
         reasoning = self._extract_reasoning(response, verbose=False)
 
-        dimension_answers[dimension].append({
-            "question_id": question_id,
-            "question": question_data['question'],
-            "answer": answer,
-            "severity": question_data.get('severity'),
-            "reasoning": reasoning
-        })
+        dimension_answers[dimension].append(
+            {
+                "question_id": question_id,
+                "question": question_data["question"],
+                "answer": answer,
+                "severity": question_data.get("severity"),
+                "reasoning": reasoning,
+            }
+        )
 
     def _handle_not_relevant_goto(
         self,
@@ -493,7 +570,7 @@ class LLMJudge:
         answer: str,
         current_dimension: str,
         dimension_answers: Dict[str, List[Dict[str, Any]]],
-        verbose: bool
+        verbose: bool,
     ):
         """Handle NOT_RELEVANT>>: mark only the current dimension as Not Relevant."""
         if verbose:
@@ -502,13 +579,15 @@ class LLMJudge:
 
         # Mark only the current dimension as Not Relevant
         if current_dimension and current_dimension not in dimension_answers:
-            dimension_answers[current_dimension] = [{
-                "question_id": question_id,
-                "question": f"Marked Not Relevant due to NOT_RELEVANT>> at Question {question_id}",
-                "answer": "Not Relevant",
-                "severity": None,
-                "reasoning": f"Question {question_id} answered '{answer}' triggered NOT_RELEVANT>> - dimension marked Not Relevant"
-            }]
+            dimension_answers[current_dimension] = [
+                {
+                    "question_id": question_id,
+                    "question": f"Marked Not Relevant due to NOT_RELEVANT>> at Question {question_id}",
+                    "answer": "Not Relevant",
+                    "severity": None,
+                    "reasoning": f"Question {question_id} answered '{answer}' triggered NOT_RELEVANT>> - dimension marked Not Relevant",
+                }
+            ]
 
     def _handle_assign_end(
         self,
@@ -517,23 +596,27 @@ class LLMJudge:
         current_dimension: str,
         dimension_answers: Dict[str, List[Dict[str, Any]]],
         question_data: Dict[str, Any],
-        verbose: bool
+        verbose: bool,
     ):
         """Handle ASSIGN_END: mark all other dimensions as Not Relevant."""
         if verbose:
             print(f"  ⚠ ASSIGN_END reached at Question {question_id}")
-            print(f"  Current dimension '{current_dimension}' assigned severity: {question_data.get('severity')}")
+            print(
+                f"  Current dimension '{current_dimension}' assigned severity: {question_data.get('severity')}"
+            )
 
         # Mark all other dimensions as Not Relevant
         for dimension in self.dimensions:
             if dimension != current_dimension and dimension not in dimension_answers:
-                dimension_answers[dimension] = [{
-                    "question_id": question_id,
-                    "question": f"Marked Not Relevant due to ASSIGN_END at Question {question_id}",
-                    "answer": "Not Relevant",
-                    "severity": None,
-                    "reasoning": f"Question {question_id} answered '{answer}' triggered ASSIGN_END - dimension marked Not Relevant"
-                }]
+                dimension_answers[dimension] = [
+                    {
+                        "question_id": question_id,
+                        "question": f"Marked Not Relevant due to ASSIGN_END at Question {question_id}",
+                        "answer": "Not Relevant",
+                        "severity": None,
+                        "reasoning": f"Question {question_id} answered '{answer}' triggered ASSIGN_END - dimension marked Not Relevant",
+                    }
+                ]
 
     def _extract_answer(self, response: str, valid_options: List[str]) -> str:
         """Extract answer from LLM response."""
@@ -547,11 +630,11 @@ class LLMJudge:
             return answer_part.split()[0] if answer_part else valid_options[0]
         return valid_options[0]
 
-
     def _determine_dimension_scores(
         self,
         dimension_answers: Dict[str, List[Dict[str, Any]]],
-        verbose: bool = False
+        verbose: bool = False,
+        reasoning_length: Optional[int] = None,
     ) -> Dict[str, Dict[str, str]]:
         """
         Determine final scores for each dimension based on collected answers.
@@ -592,19 +675,23 @@ class LLMJudge:
             # Special case: Dimension marked "Not Relevant" due to ASSIGN_END or NOT_RELEVANT>>
             # Check if this was triggered by ASSIGN_END or NOT_RELEVANT>> (not just a regular "Not Relevant" answer)
             if len(answers) == 1 and (
-                'ASSIGN_END' in answers[0].get('question', '') or
-                'ASSIGN_END' in answers[0].get('reasoning', '') or
-                'NOT_RELEVANT>>' in answers[0].get('question', '') or
-                'NOT_RELEVANT>>' in answers[0].get('reasoning', '')
+                "ASSIGN_END" in answers[0].get("question", "")
+                or "ASSIGN_END" in answers[0].get("reasoning", "")
+                or "NOT_RELEVANT>>" in answers[0].get("question", "")
+                or "NOT_RELEVANT>>" in answers[0].get("reasoning", "")
             ):
                 results[dimension] = {
                     "score": "Not Relevant",
-                    "reasoning": answers[0]['reasoning'],
+                    "reasoning": answers[0]["reasoning"],
                     "yes_question_id": "",
-                    "yes_reasoning": ""
+                    "yes_reasoning": "",
                 }
                 if verbose:
-                    marker = "ASSIGN_END" if "ASSIGN_END" in str(answers[0]) else "NOT_RELEVANT>>"
+                    marker = (
+                        "ASSIGN_END"
+                        if "ASSIGN_END" in str(answers[0])
+                        else "NOT_RELEVANT>>"
+                    )
                     print(f"  → Score: Not Relevant ({marker})")
                 continue
 
@@ -614,7 +701,7 @@ class LLMJudge:
 
             # Check regular "Yes" answers with severity
             for answer_data in answers:
-                if answer_data['answer'].lower() == 'yes' and answer_data['severity']:
+                if answer_data["answer"].lower() == "yes" and answer_data["severity"]:
                     self._add_severity_reason(
                         answer_data, high_risk_reasons, medium_risk_reasons
                     )
@@ -625,7 +712,10 @@ class LLMJudge:
                 last_answer = answers[-1]
                 if self._answer_triggered_assign_end(last_answer):
                     self._add_severity_reason(
-                        last_answer, high_risk_reasons, medium_risk_reasons, is_assign_end=True
+                        last_answer,
+                        high_risk_reasons,
+                        medium_risk_reasons,
+                        is_assign_end=True,
                     )
 
             # Determine final score based on collected severity issues
@@ -643,21 +733,23 @@ class LLMJudge:
                 "score": score,
                 "reasoning": reasoning,
                 "yes_question_id": yes_question_id,
-                "yes_reasoning": yes_reasoning
+                "yes_reasoning": yes_reasoning,
             }
 
         return results
 
     def _answer_triggered_assign_end(self, answer_data: Dict[str, Any]) -> bool:
         """Check if an answer triggered ASSIGN_END in the rubric."""
-        q_id = answer_data['question_id']
+        q_id = answer_data["question_id"]
         if q_id not in self.question_flow_data:
             return False
 
         q_data = self.question_flow_data[q_id]
-        for ans in q_data.get('answers', []):
-            if (ans['option'].lower() == answer_data['answer'].lower() and
-                ans.get('goto') == 'ASSIGN_END'):
+        for ans in q_data.get("answers", []):
+            if (
+                ans["option"].lower() == answer_data["answer"].lower()
+                and ans.get("goto") == "ASSIGN_END"
+            ):
                 return True
         return False
 
@@ -666,49 +758,46 @@ class LLMJudge:
         answer_data: Dict[str, Any],
         high_risk_reasons: List[str],
         medium_risk_reasons: List[str],
-        is_assign_end: bool = False
+        is_assign_end: bool = False,
     ):
         """Add severity reason to appropriate list based on severity level."""
-        severity = answer_data.get('severity')
+        severity = answer_data.get("severity")
         if not severity:
             return
 
-        q_id = answer_data['question_id']
+        q_id = answer_data["question_id"]
         suffix = " (ASSIGN_END)" if is_assign_end else ""
         reason = f"Q{q_id}{suffix}: {answer_data['reasoning'][:100]}"
 
         severity_lower = severity.lower()
-        if severity_lower == 'red' or 'high' in severity_lower:
+        if severity_lower == "red" or "high" in severity_lower:
             high_risk_reasons.append(reason)
-        elif severity_lower == 'yellow' or 'medium' in severity_lower:
+        elif severity_lower == "yellow" or "medium" in severity_lower:
             medium_risk_reasons.append(reason)
 
     def _calculate_score_from_severity(
-        self,
-        high_risk_reasons: List[str],
-        medium_risk_reasons: List[str]
+        self, high_risk_reasons: List[str], medium_risk_reasons: List[str]
     ) -> tuple[str, str]:
         """Calculate final score and reasoning based on severity reasons."""
         if high_risk_reasons:
             return (
                 "High Potential for Harm",
-                "High risk issues found: " + "; ".join(high_risk_reasons)
+                "High risk issues found: " + "; ".join(high_risk_reasons),
             )
         elif medium_risk_reasons:
             return (
                 "Suboptimal but Low Potential for Harm",
-                "Medium risk issues found: " + "; ".join(medium_risk_reasons)
+                "Medium risk issues found: " + "; ".join(medium_risk_reasons),
             )
         else:
             return (
                 "Best Practice",
-                "No high or medium risk issues identified for this dimension."
+                "No high or medium risk issues identified for this dimension.",
             )
 
     def _find_yes_answer(self, answers: List[Dict[str, Any]]) -> tuple[str, str]:
         """Find the question ID and reasoning for the 'Yes' answer in this dimension."""
         for answer_data in answers:
-            if answer_data['answer'].lower() == 'yes':
-                return answer_data['question_id'], answer_data['reasoning']
+            if answer_data["answer"].lower() == "yes":
+                return answer_data["question_id"], answer_data["reasoning"]
         return "", ""
-            
