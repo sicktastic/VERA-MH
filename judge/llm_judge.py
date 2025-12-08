@@ -121,6 +121,35 @@ class LLMJudge:
         with open(conversation_path, "r", encoding="utf-8") as f:
             return f.read()
 
+    def _create_evaluator(
+        self, conversation: str, conversation_file: str, verbose: bool
+    ):
+        """Create and configure the LLM evaluator with conversation context."""
+        # Log evaluation start
+        self.logger.info("=" * 80)
+        self.logger.info(f"Starting evaluation: {conversation_file}")
+        self.logger.info(f"Model: {self.judge_model}")
+        self.logger.info("=" * 80)
+        self.logger.info(
+            f"CONVERSATION (length: {len(conversation)} chars):\n"
+            f"{conversation[:1000]}..."
+        )
+
+        if verbose:
+            print("Starting question-flow evaluation...")
+
+        # Create conversation context prompt
+        conversation_context_prompt = self.rubric_prompt_beginning.format(
+            conversation=conversation
+        )
+        self.logger.info(f"SYSTEM PROMPT:\n{conversation_context_prompt[:500]}...")
+
+        return LLMFactory.create_llm(
+            model_name=self.judge_model,
+            name="Question Flow Evaluator",
+            system_prompt=conversation_context_prompt,
+        )
+
     async def evaluate_conversation_question_flow(
         self,
         conversation_file: str,
@@ -208,63 +237,6 @@ class LLMJudge:
                 reasoning = result["reasoning"].replace("\n", " ").replace("\t", " ")
                 f.write(f"{dimension}{sep}{score}{sep}{reasoning}\n")
 
-    async def evaluate_conversation_question_flow(
-        self,
-        conversation_file: str,
-        output_folder: str,
-        auto_save: bool = True,
-        verbose: bool = False,
-        # TODO: remove this
-        start_question_id: Optional[str] = None,
-        reasoning_length: Optional[int] = None,
-    ) -> Dict[str, Dict[str, str]]:
-        """
-        Evaluate conversation using question-flow rubric (rubric.tsv).
-
-        This method loads the conversation once and then navigates through
-        questions using GOTO logic and answer-based branching.
-
-        Args:
-            conversation_file: Path to conversation file
-            output_folder: Folder to save evaluation results
-            auto_save: Whether to automatically save results to files
-            verbose: Whether to print progress information
-            start_question_id: Question ID to start with (default: "4")
-            reasoning_length: Length of reasoning to save (default: None)
-
-        Returns:
-            Dictionary with dimension names as keys and evaluation results as values
-            Format: {dimension: {"score": str, "reasoning": str}}
-        """
-        if self.question_flow_data is None:
-            raise ValueError(
-                "Question flow rubric not loaded. Check rubric.tsv exists."
-            )
-
-        # Log evaluation start
-        self.logger.info("=" * 80)
-        self.logger.info(f"Starting evaluation: {conversation_file}")
-        self.logger.info(f"Model: {self.judge_model}")
-        self.logger.info("=" * 80)
-        self.logger.info(
-            f"CONVERSATION (length: {len(conversation)} chars):\n{conversation[:1000]}..."
-        )
-
-        if verbose:
-            print("Starting question-flow evaluation...")
-
-        # Create conversation context prompt
-        conversation_context_prompt = self.rubric_prompt_beginning.format(
-            conversation=conversation
-        )
-        self.logger.info(f"SYSTEM PROMPT:\n{conversation_context_prompt[:500]}...")
-
-        return LLMFactory.create_llm(
-            model_name=self.judge_model,
-            name="Question Flow Evaluator",
-            system_prompt=conversation_context_prompt,
-        )
-
     def _calculate_results(
         self,
         not_relevant_question_id: Optional[str],
@@ -321,7 +293,9 @@ class LLMJudge:
             }
         return results
 
-    def _log_final_results(self, results: Dict[str, Dict[str, str]]):
+    def _log_final_results(
+        self, results: Dict[str, Dict[str, str]], reasoning_length: Optional[int] = None
+    ):
         """Log final evaluation results."""
         self.logger.info("=" * 80)
         self.logger.info("FINAL RESULTS:")
