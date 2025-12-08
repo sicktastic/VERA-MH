@@ -70,7 +70,7 @@ class ConversationSimulator:
 
         Args:
             max_turns: Maximum number of conversation turns
-            initial_message: Optional initial message (for the first speaker) to start the conversation. By default, the first speakers is the persona.
+            initial_message: Optional initial message (for the first speaker) to start the conversation. By default, the first speaker is the persona.
             max_total_words: Optional maximum total words across all responses
 
 
