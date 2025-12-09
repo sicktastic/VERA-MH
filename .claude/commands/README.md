@@ -16,8 +16,9 @@ This directory contains custom slash commands for the VERA-MH project.
 
 ### Testing
 - `/test` - Run test suite (with coverage by default, use --no-cov to skip)
+- `/fix-tests` - Fix failing tests iteratively until all pass, show branch-focused coverage
 - `/create-test` - Create new test file with stubs
-- `/improve-coverage` - Analyze coverage and systematically create tests for gaps
+- `/create-tests` - Analyze coverage and systematically create tests for gaps
 - `/sync-testing-docs` - Audit and sync testing documentation (commands, agents, repo patterns)
 
 ### Git Workflow

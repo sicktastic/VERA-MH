@@ -3,7 +3,10 @@ Analyze test coverage and systematically improve it:
 1. **Run Coverage Analysis**
    - Execute: `uv run pytest --cov=vera_mh --cov-report=term-missing --cov-report=json`
    - Parse coverage report
-   - Identify modules with coverage below target (75%)
+   - Identify modules with coverage below quality target (75%+)
+   - Note: Project has dual coverage targets:
+     - 30% = CI minimum (must pass for all code)
+     - 75%+ = Quality target (goal for new/changed code)
 
 2. **Prioritize Modules**
    Rank by importance:
@@ -62,10 +65,10 @@ User runs `/improve-coverage`:
 ```
 Analyzing coverage...
 
-Coverage Report (Current: 65%, Target: 75%):
+Coverage Report (Current: 65%, Quality Target: 75%):
 
 🔴 Critical - Needs Attention:
-  llm_clients/claude_llm.py: 45% (↓ 30% from target)
+  llm_clients/claude_llm.py: 45% (↓ 30% from quality target)
     Uncovered: Lines 78-95 (error handling), 120-135 (retry logic)
 
   generate_conversations/conversation_simulator.py: 58% (↓ 17%)

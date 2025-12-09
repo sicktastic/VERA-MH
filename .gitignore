@@ -15,6 +15,7 @@ spring_scripts/
 # Testing artifacts
 .pytest_cache/
 .coverage
+coverage.json
 htmlcov/
 
 # Claude Code - personal settings and local files only

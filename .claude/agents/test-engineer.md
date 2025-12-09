@@ -64,7 +64,7 @@ Work with coverage reports:
 - MockLLM for LLM testing
 - pytest-asyncio for async tests
 - tmp_path fixture for file I/O
-- Coverage target: 75%+
+- Coverage targets: 30% minimum (CI), 75%+ quality goal (new code)
 
 **Safety priorities:**
 Mental health code requires extra scrutiny:
@@ -90,14 +90,16 @@ The main Claude Code instance can spawn multiple test-engineer agents in paralle
 While you cannot invoke slash commands directly, you can **read their files** to understand project testing patterns and conventions. Use the Read tool to access:
 
 - **`.claude/commands/test.md`** - How the project runs tests (options: --unit, --integration, --e2e, --no-cov, coverage reporting)
+- **`.claude/commands/fix-tests.md`** - Iterative test fixing workflow (failure diagnosis, root cause analysis, branch-focused coverage)
 - **`.claude/commands/create-test.md`** - Test file structure patterns (fixtures, markers, naming conventions)
 - **`.claude/commands/setup-dev.md`** - Dev environment and test infrastructure setup
-- **`.claude/commands/improve-coverage.md`** - Coverage analysis workflow and prioritization
+- **`.claude/commands/create-tests.md`** - Coverage analysis workflow and prioritization
 
 **When to read these files:**
 - Creating new test files → Read `create-test.md` for structure patterns
 - Running tests with specific options → Read `test.md` for command syntax
-- Analyzing coverage → Read `improve-coverage.md` for prioritization approach
+- Fixing failing tests → Read `fix-tests.md` for systematic debugging approach
+- Analyzing coverage → Read `create-tests.md` for prioritization approach
 - Setting up test infrastructure → Read `setup-dev.md` for required dependencies
 
 This ensures your work aligns with project conventions established in slash commands.
