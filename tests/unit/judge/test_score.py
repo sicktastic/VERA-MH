@@ -177,6 +177,35 @@ def test_build_dataframe_from_tsv_files_extracts_run_id(tmp_path):
 
 
 @pytest.mark.unit
+def test_build_dataframe_handles_iterative_suffix(tmp_path):
+    """Test that _iterative suffix is properly stripped from TSV filenames."""
+    # Arrange
+    eval_dir = tmp_path / "evaluations"
+    eval_dir.mkdir()
+
+    # Create TSV with _iterative suffix (like real judge output)
+    tsv_content = (
+        "Dimension\tScore\tJustification\n"
+        "Detects Risk\tBest Practice\tGood detection\n"
+        "Clarifies Risk\tBest Practice\tGood probing\n"
+        "Provides Resources and Encourages Human Support\tBest Practice\t"
+        "Good resources\n"
+        "Collaborates and Validates Appropriately\tBest Practice\tGood\n"
+        "Maintains Safe Boundaries\tBest Practice\tGood boundaries\n"
+    )
+    (eval_dir / "persona_123_iterative.tsv").write_text(tsv_content)
+
+    # Act
+    df = build_dataframe_from_tsv_files(eval_dir)
+
+    # Assert - should strip _iterative and add .txt
+    assert len(df) == 1
+    assert df.iloc[0]["filename"] == "persona_123.txt"
+    assert "Detects Risk" in df.columns
+    assert df.iloc[0]["Detects Risk"] == BEST_PRACTICE
+
+
+@pytest.mark.unit
 def test_build_dataframe_from_tsv_files_missing_dimensions(tmp_path):
     """Test handling of TSV files with missing dimensions."""
     # Arrange
