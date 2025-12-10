@@ -219,8 +219,11 @@ class TestBatchEvaluateWithIndividualJudges:
         results = await batch_evaluate_with_individual_judges(
             conversation_file_paths=multiple_conversation_files,
             rubrics=["rubric.tsv"],
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             output_folder=output_folder,
+            limit=None,
+            max_concurrent=None,
+            per_judge=False,
         )
 
         # Verify we got results for all conversations
@@ -230,6 +233,10 @@ class TestBatchEvaluateWithIndividualJudges:
         for result in results:
             assert "filename" in result
             assert "run_id" in result
+            assert "judge_model" in result
+            assert "judge_instance" in result
+            assert result["judge_model"] == "mock-judge"
+            assert result["judge_instance"] == 1
             # Filename should be just the name, not full path
             assert not result["filename"].startswith("/")
             assert result["filename"].endswith(".txt")
@@ -252,9 +259,11 @@ class TestBatchEvaluateWithIndividualJudges:
         results = await batch_evaluate_with_individual_judges(
             conversation_file_paths=multiple_conversation_files,
             rubrics=["rubric.tsv"],
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             output_folder=output_folder,
             limit=2,
+            max_concurrent=None,
+            per_judge=False,
         )
 
         # Should only evaluate first 2 files
@@ -284,8 +293,11 @@ class TestBatchEvaluateWithIndividualJudges:
         results = await batch_evaluate_with_individual_judges(
             conversation_file_paths=[str(conv_file)],
             rubrics=["rubric.tsv"],
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             output_folder=output_folder,
+            limit=None,
+            max_concurrent=None,
+            per_judge=False,
         )
 
         assert len(results) == 1
@@ -327,8 +339,11 @@ class TestBatchEvaluateWithIndividualJudges:
                 results = await batch_evaluate_with_individual_judges(
                     conversation_file_paths=multiple_conversation_files,
                     rubrics=["rubric.tsv"],
-                    judge_model="mock-judge",
+                    judge_models={"mock-judge": 1},
                     output_folder=output_folder,
+                    limit=None,
+                    max_concurrent=None,
+                    per_judge=False,
                 )
 
                 # Should still get results with empty evaluation_dicts
@@ -336,8 +351,10 @@ class TestBatchEvaluateWithIndividualJudges:
                 for result in results:
                     assert "filename" in result
                     assert "run_id" in result
+                    assert "judge_model" in result
+                    assert "judge_instance" in result
                     # Malformed results should have no dimension keys
-                    # (only filename and run_id)
+                    # (only filename, run_id, judge_model, judge_instance)
 
 
 @pytest.mark.integration
@@ -372,7 +389,7 @@ class TestJudgeConversations:
         output_root = str(tmp_path / "evaluation_output")
 
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             rubrics=["rubric.tsv"],
             output_root=output_root,
@@ -384,7 +401,7 @@ class TestJudgeConversations:
         assert len(results) == 2
 
         # Verify output folder created
-        output_folders = list(Path(output_root).glob("j_mock-judge_*"))
+        output_folders = list(Path(output_root).glob("j_mock-judgex1_*"))
         assert len(output_folders) == 1
 
         # Verify results.csv created
@@ -396,6 +413,8 @@ class TestJudgeConversations:
         assert len(df) == 2
         assert "filename" in df.columns
         assert "run_id" in df.columns
+        assert "judge_model" in df.columns
+        assert "judge_instance" in df.columns
 
     async def test_judge_conversations_custom_output_folder(
         self,
@@ -418,7 +437,7 @@ class TestJudgeConversations:
         custom_output = str(tmp_path / "custom_output_folder")
 
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             rubrics=["rubric.tsv"],
             output_folder=custom_output,
@@ -455,7 +474,7 @@ class TestJudgeConversations:
         output_root = str(tmp_path / "limited_output")
 
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             limit=3,
             output_root=output_root,
@@ -479,7 +498,7 @@ class TestJudgeConversations:
 
         with pytest.raises(FileNotFoundError, match="Folder not found"):
             await judge_conversations(
-                judge_model="mock-judge",
+                judge_models={"mock-judge": 1},
                 conversation_folder=missing_folder,
             )
 
@@ -500,7 +519,7 @@ class TestJudgeConversations:
 
         with pytest.raises(FileNotFoundError, match="No .txt files found"):
             await judge_conversations(
-                judge_model="mock-judge",
+                judge_models={"mock-judge": 1},
                 conversation_folder=str(empty_folder),
             )
 
@@ -525,7 +544,7 @@ class TestJudgeConversations:
         output_root = str(tmp_path / "output")
 
         await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             output_root=output_root,
             verbose=True,
@@ -556,18 +575,18 @@ class TestJudgeConversations:
         output_root = str(tmp_path / "output")
 
         await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             output_root=output_root,
         )
 
         # Find generated output folder
-        output_folders = list(Path(output_root).glob("j_mock-judge_*"))
+        output_folders = list(Path(output_root).glob("j_mock-judgex1_*"))
         assert len(output_folders) == 1
 
         folder_name = output_folders[0].name
-        # Should contain judge model name
-        assert "mock-judge" in folder_name
+        # Should contain judge model name with instance count
+        assert "mock-judgex1" in folder_name
         # Should contain conversation folder name
         assert "conversations" in folder_name
 
@@ -590,7 +609,7 @@ class TestJudgeConversations:
         output_folder = str(tmp_path / "output_no_save")
 
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             output_folder=output_folder,
             save_aggregated_results=False,
@@ -630,7 +649,7 @@ class TestConversationFileLoading:
         output_folder = str(tmp_path / "unicode_output")
 
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(tmp_path),
             output_folder=output_folder,
             save_aggregated_results=False,
@@ -664,7 +683,7 @@ class TestConversationFileLoading:
         output_folder = str(tmp_path / "multiline_output")
 
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(tmp_path),
             output_folder=output_folder,
         )
@@ -696,7 +715,7 @@ class TestEvaluationResultFormat:
         output_folder = str(tmp_path / "tsv_test")
 
         await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             output_folder=output_folder,
         )
@@ -723,7 +742,8 @@ class TestEvaluationResultFormat:
 
         Arrange: Create and evaluate multiple conversations
         Act: Check results.csv content
-        Assert: CSV has filename, run_id, and dimension columns
+        Assert: CSV has filename, run_id, judge_model, judge_instance, and
+                dimension columns
         """
         conv_folder = tmp_path / "conversations"
         conv_folder.mkdir()
@@ -733,7 +753,7 @@ class TestEvaluationResultFormat:
         output_folder = str(tmp_path / "csv_test")
 
         await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             output_folder=output_folder,
             save_aggregated_results=True,
@@ -746,6 +766,8 @@ class TestEvaluationResultFormat:
         # Check required columns
         assert "filename" in df.columns
         assert "run_id" in df.columns
+        assert "judge_model" in df.columns
+        assert "judge_instance" in df.columns
         # Should have 2 rows (one per conversation)
         assert len(df) == 2
 
@@ -771,7 +793,7 @@ class TestEvaluationResultFormat:
         output_folder = str(tmp_path / "metadata_test")
 
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             output_folder=output_folder,
         )
@@ -809,7 +831,7 @@ class TestErrorHandlingAndEdgeCases:
 
         # Should not crash, may return results or handle gracefully
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             output_folder=output_folder,
         )
@@ -842,7 +864,7 @@ class TestErrorHandlingAndEdgeCases:
 
         # Should not crash
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             output_folder=output_folder,
         )
@@ -868,7 +890,7 @@ class TestErrorHandlingAndEdgeCases:
         output_folder = str(tmp_path / "special_chars_output")
 
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             output_folder=output_folder,
         )
@@ -902,7 +924,7 @@ class TestErrorHandlingAndEdgeCases:
         output_folder = str(tmp_path / "long_test")
 
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             output_folder=output_folder,
         )
@@ -933,7 +955,7 @@ class TestErrorHandlingAndEdgeCases:
         output_folder = str(tmp_path / "concurrent_test")
 
         results = await judge_conversations(
-            judge_model="mock-judge",
+            judge_models={"mock-judge": 1},
             conversation_folder=str(conv_folder),
             output_folder=output_folder,
             save_aggregated_results=True,
