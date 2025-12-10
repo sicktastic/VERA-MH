@@ -1379,3 +1379,245 @@ class TestWorkerQueueSystem:
         assert len(filenames) == 2
         assert Path(multiple_conversation_files[0]).name in filenames
         assert Path(multiple_conversation_files[1]).name in filenames
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestErrorHandlingAndCoverage:
+    """Tests for error handling and edge cases to improve coverage."""
+
+    async def test_worker_handles_evaluation_failures(
+        self,
+        multiple_conversation_files: List[str],
+        mock_rubric_files: str,
+        tmp_path: Path,
+    ):
+        """Test worker queue handles evaluation failures gracefully.
+
+        Arrange: Mock evaluate_conversation_question_flow to raise exception
+        Act: Run batch evaluation
+        Assert: Worker catches exception, prints error, continues processing
+        """
+
+        async def mock_evaluate_error(*args, **kwargs):
+            raise RuntimeError("Simulated evaluation failure")
+
+        with patch(
+            "judge.llm_judge.LLMJudge.evaluate_conversation_question_flow",
+            mock_evaluate_error,
+        ):
+            with patch("judge.llm_judge.LLMFactory.create_llm"):
+                output_folder = str(tmp_path / "error_test")
+
+                results = await batch_evaluate_with_individual_judges(
+                    conversation_file_paths=multiple_conversation_files,
+                    judge_models={"mock-judge": 1},
+                    output_folder=output_folder,
+                    limit=None,
+                    max_concurrent=2,
+                    per_judge=False,
+                )
+
+                # Should handle errors gracefully without crashing
+                # Results will be empty since all evaluations failed
+                assert isinstance(results, list)
+                assert len(results) == 0
+
+    async def test_per_judge_prints_worker_pool_info(
+        self,
+        multiple_conversation_files: List[str],
+        mock_rubric_files: str,
+        mock_llm_factory_for_judge,
+        tmp_path: Path,
+        capsys,
+    ):
+        """Test per_judge mode prints worker pool creation for each model.
+
+        Arrange: Create conversations with 2 different judge models
+        Act: Run with per_judge=True and capture stdout
+        Assert: Prints separate worker pool info for each model
+        """
+        output_folder = str(tmp_path / "per_judge_output")
+
+        await batch_evaluate_with_individual_judges(
+            conversation_file_paths=multiple_conversation_files,
+            judge_models={"model-a": 1, "model-b": 1},
+            output_folder=output_folder,
+            limit=None,
+            max_concurrent=2,
+            per_judge=True,
+        )
+
+        captured = capsys.readouterr()
+
+        # Should print worker pool creation for each model
+        assert "Starting 2 workers for model-a" in captured.out
+        assert "Starting 2 workers for model-b" in captured.out
+        assert "3 jobs" in captured.out  # 3 conversations per model
+
+    async def test_judge_conversations_handles_empty_results(
+        self,
+        tmp_path: Path,
+        mock_rubric_files: str,
+    ):
+        """Test judge_conversations handles empty results without crashing.
+
+        Arrange: Mock batch_evaluate to return empty list
+        Act: Call judge_conversations with save_aggregated_results=True
+        Assert: Handles empty results, no CSV created
+        """
+
+        async def mock_batch_evaluate_empty(*args, **kwargs):
+            return []
+
+        with patch(
+            "judge.runner.batch_evaluate_with_individual_judges",
+            mock_batch_evaluate_empty,
+        ):
+            conv_folder = tmp_path / "conversations"
+            conv_folder.mkdir()
+            (conv_folder / "test.txt").write_text("user: hi\nchatbot: hello")
+
+            output_folder = str(tmp_path / "output")
+
+            results = await judge_conversations(
+                judge_models={"mock-judge": 1},
+                conversation_folder=str(conv_folder),
+                output_folder=output_folder,
+                save_aggregated_results=True,
+            )
+
+            # Should handle empty results without crashing
+            assert results == []
+            # results.csv should not be created for empty results
+            assert not (Path(output_folder) / "results.csv").exists()
+
+
+@pytest.mark.unit
+class TestRunnerHelperFunctions:
+    """Unit tests for internal helper functions in judge/runner.py."""
+
+    def test_parse_evaluation_to_dict_complete(self):
+        """Test parsing evaluation dict with all fields present.
+
+        Arrange: Create evaluation dict with score, reasoning, yes fields
+        Act: Call _parse_evaluation_to_dict
+        Assert: Returns flattened dict with all fields
+        """
+        from judge.runner import _parse_evaluation_to_dict
+
+        evaluation = {
+            "safety": {
+                "score": "Red",
+                "reasoning": "Contains unsafe content",
+                "yes_question_id": "Q1",
+                "yes_reasoning": "Provides harmful advice",
+            },
+            "empathy": {
+                "score": "Green",
+                "reasoning": "Shows good empathy",
+                "yes_question_id": "Q5",
+                "yes_reasoning": "Validates feelings",
+            },
+        }
+
+        result = _parse_evaluation_to_dict(evaluation)
+
+        # Check safety dimension
+        assert result["safety"] == "Red"
+        assert result["safety_yes_question_id"] == "Q1"
+        assert result["safety_yes_reasoning"] == "Provides harmful advice"
+
+        # Check empathy dimension
+        assert result["empathy"] == "Green"
+        assert result["empathy_yes_question_id"] == "Q5"
+        assert result["empathy_yes_reasoning"] == "Validates feelings"
+
+    def test_parse_evaluation_to_dict_missing_optional_fields(self):
+        """Test parsing evaluation dict with missing optional fields.
+
+        Arrange: Create evaluation dict without yes_question_id/yes_reasoning
+        Act: Call _parse_evaluation_to_dict
+        Assert: Returns dict with empty strings for missing fields
+        """
+        from judge.runner import _parse_evaluation_to_dict
+
+        evaluation = {
+            "safety": {
+                "score": "Green",
+                "reasoning": "Safe content",
+                # yes_question_id and yes_reasoning missing (No answer)
+            }
+        }
+
+        result = _parse_evaluation_to_dict(evaluation)
+
+        assert result["safety"] == "Green"
+        assert result["safety_yes_question_id"] == ""
+        assert result["safety_yes_reasoning"] == ""
+
+    def test_create_evaluation_jobs_single_model(self):
+        """Test job creation with single model and multiple instances.
+
+        Arrange: 2 conversations, 1 judge model with 3 instances
+        Act: Call _create_evaluation_jobs
+        Assert: Creates 6 jobs (2 convs × 3 instances)
+        """
+        from judge.runner import _create_evaluation_jobs
+
+        conversations = ["conv1.txt", "conv2.txt"]
+        judge_models = {"judge-a": 3}
+        output_folder = "/tmp/output"
+
+        jobs = _create_evaluation_jobs(conversations, judge_models, output_folder)
+
+        # 2 conversations × 3 instances = 6 jobs
+        assert len(jobs) == 6
+
+        # Verify job structure
+        assert jobs[0] == ("conv1.txt", "judge-a", 1, output_folder)
+        assert jobs[1] == ("conv1.txt", "judge-a", 2, output_folder)
+        assert jobs[2] == ("conv1.txt", "judge-a", 3, output_folder)
+        assert jobs[3] == ("conv2.txt", "judge-a", 1, output_folder)
+
+    def test_create_evaluation_jobs_multiple_models(self):
+        """Test job creation with multiple models and varying instances.
+
+        Arrange: 2 conversations, 2 judge models (2 and 3 instances)
+        Act: Call _create_evaluation_jobs
+        Assert: Creates 10 jobs (2 convs × 5 total instances)
+        """
+        from judge.runner import _create_evaluation_jobs
+
+        conversations = ["conv1.txt", "conv2.txt"]
+        judge_models = {"judge-a": 2, "judge-b": 3}
+        output_folder = "/tmp/output"
+
+        jobs = _create_evaluation_jobs(conversations, judge_models, output_folder)
+
+        # 2 conversations × (2 + 3) instances = 10 jobs
+        assert len(jobs) == 10
+
+        # Count jobs per model
+        judge_a_jobs = [j for j in jobs if j[1] == "judge-a"]
+        judge_b_jobs = [j for j in jobs if j[1] == "judge-b"]
+
+        assert len(judge_a_jobs) == 4  # 2 convs × 2 instances
+        assert len(judge_b_jobs) == 6  # 2 convs × 3 instances
+
+    def test_create_evaluation_jobs_empty_conversations(self):
+        """Test job creation with empty conversation list.
+
+        Arrange: Empty conversation list, 1 judge model
+        Act: Call _create_evaluation_jobs
+        Assert: Returns empty job list
+        """
+        from judge.runner import _create_evaluation_jobs
+
+        conversations = []
+        judge_models = {"judge-a": 2}
+        output_folder = "/tmp/output"
+
+        jobs = _create_evaluation_jobs(conversations, judge_models, output_folder)
+
+        assert len(jobs) == 0

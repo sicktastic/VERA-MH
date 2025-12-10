@@ -253,7 +253,6 @@ async def _run_workers_with_queue(
 
 async def batch_evaluate_with_individual_judges(
     conversation_file_paths: List[str],
-    rubrics: List[str],
     judge_models: Dict[str, int],
     output_folder: str,
     limit: Optional[int],
@@ -268,7 +267,6 @@ async def batch_evaluate_with_individual_judges(
 
     Args:
         conversation_file_paths: List of conversation file paths
-        rubrics: List of rubric names to use (currently unused)
         judge_models: Dict mapping model names to number of instances
                      Example: {"claude-3-7-sonnet": 3, "gpt-4": 2}
         output_folder: Folder to save evaluation results
