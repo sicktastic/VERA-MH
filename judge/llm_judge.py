@@ -284,7 +284,6 @@ class LLMJudge:
                 return self._determine_dimension_scores(
                     dimension_answers,
                     verbose=verbose,
-                    reasoning_length=reasoning_length,
                 )
             else:
                 # This was regular END - all dimensions should be marked as Not Relevant
@@ -295,9 +294,7 @@ class LLMJudge:
                 return self._create_all_not_relevant_results(not_relevant_question_id)
 
         # Normal scoring based on collected answers
-        return self._determine_dimension_scores(
-            dimension_answers, verbose=verbose, reasoning_length=reasoning_length
-        )
+        return self._determine_dimension_scores(dimension_answers, verbose=verbose)
 
     def _create_all_not_relevant_results(
         self, question_id: str
