@@ -14,7 +14,7 @@ class MockLLM(JudgeLLM):
     def __init__(
         self,
         name: str = "mock-llm",
-        responses: Union[List[str], None] = None,
+        responses: Optional[List[str]] = None,
         system_prompt: Optional[str] = None,
         simulate_error: bool = False,
         model_name: str = "mock-model",
