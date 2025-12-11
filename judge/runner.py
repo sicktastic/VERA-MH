@@ -48,6 +48,7 @@ async def _evaluate_single_conversation_with_judge(
     conversation_file: str,
     judge_model: str,
     judge_instance: int,
+    judge_id: int,
     output_folder: str,
 ) -> Dict[str, Any]:
     """
@@ -57,10 +58,11 @@ async def _evaluate_single_conversation_with_judge(
         conversation_file: Path to conversation file
         judge_model: Model name to use for judging
         judge_instance: Instance number for this judge (1, 2, 3, ...)
+        judge_id: Zero-based ID for this judge (0, 1, 2, ...)
         output_folder: Folder to save evaluation results
 
     Returns:
-        Dict with filename, run_id, judge_model, judge_instance,
+        Dict with filename, run_id, judge_model, judge_instance, judge_id,
         and all dimension scores
     """
     judge = LLMJudge(judge_model=judge_model)
@@ -70,6 +72,7 @@ async def _evaluate_single_conversation_with_judge(
         output_folder=output_folder,
         auto_save=True,
         verbose=False,
+        judge_instance=judge_instance,
     )
 
     try:
@@ -87,6 +90,7 @@ async def _evaluate_single_conversation_with_judge(
         "run_id": Path(conversation_file).parent.name,
         "judge_model": judge_model,
         "judge_instance": judge_instance,
+        "judge_id": judge_id,
         **evaluation_dict,
     }
 
@@ -95,7 +99,7 @@ def _create_evaluation_jobs(
     conversation_file_paths: List[str],
     judge_models: Dict[str, int],
     output_folder: str,
-) -> List[Tuple[str, str, int, str]]:
+) -> List[Tuple[str, str, int, int, str]]:
     """
     Create job tuples for all (conversation × judge × instance) combinations.
 
@@ -105,13 +109,18 @@ def _create_evaluation_jobs(
         output_folder: Folder to save evaluation results
 
     Returns:
-        List of job tuples (conversation_file, judge_model, instance, output_folder)
+        List of job tuples:
+        (conversation_file, judge_model, instance, judge_id, output_folder)
+        where judge_id starts from 0 for each model type
     """
     jobs = []
     for conversation_file in conversation_file_paths:
         for judge_model, num_instances in judge_models.items():
             for instance in range(1, num_instances + 1):
-                jobs.append((conversation_file, judge_model, instance, output_folder))
+                judge_id = instance - 1  # Convert 1-based instance to 0-based judge_id
+                jobs.append(
+                    (conversation_file, judge_model, instance, judge_id, output_folder)
+                )
     return jobs
 
 
@@ -138,7 +147,7 @@ async def _worker(
         except asyncio.QueueEmpty:
             break
 
-        conversation_file, judge_model, instance, output_folder = job
+        conversation_file, judge_model, instance, judge_id, output_folder = job
 
         # Skip if worker is filtered to a specific judge model
         if judge_model_filter and judge_model != judge_model_filter:
@@ -148,12 +157,13 @@ async def _worker(
         completed = len(results)
         print(
             f"[Worker {worker_id}] ({completed + 1}/{total_jobs}) "
-            f"{Path(conversation_file).name} | {judge_model} (instance {instance})"
+            f"{Path(conversation_file).name} | {judge_model} "
+            f"(instance {instance}, id {judge_id})"
         )
 
         try:
             result = await _evaluate_single_conversation_with_judge(
-                conversation_file, judge_model, instance, output_folder
+                conversation_file, judge_model, instance, judge_id, output_folder
             )
             results.append(result)
         except Exception as e:
@@ -166,7 +176,7 @@ async def _worker(
 
 
 async def _run_workers_with_queue(
-    jobs: List[Tuple[str, str, int, str]],
+    jobs: List[Tuple[str, str, int, int, str]],
     max_concurrent: Optional[int],
     per_judge: bool = False,
 ) -> List[Dict[str, Any]]:
@@ -175,7 +185,7 @@ async def _run_workers_with_queue(
 
     Args:
         jobs: List of job tuples
-              (conversation_file, judge_model, instance, output_folder)
+              (conversation_file, judge_model, instance, judge_id, output_folder)
         max_concurrent: Maximum number of concurrent workers (None = unlimited)
         per_judge: If True, max_concurrent applies per judge model;
                   if False, total
@@ -393,11 +403,19 @@ async def judge_conversations(
     )
 
     if save_aggregated_results and results:
-        # Column order: filename, run_id, judge_model, judge_instance, dimensions
-        columns = ["filename", "run_id", "judge_model", "judge_instance"] + [
+        # Column order: filename, run_id, judge_model, judge_instance,
+        # judge_id, dimensions
+        columns = [
+            "filename",
+            "run_id",
+            "judge_model",
+            "judge_instance",
+            "judge_id",
+        ] + [
             k
             for k in results[0].keys()
-            if k not in ["filename", "run_id", "judge_model", "judge_instance"]
+            if k
+            not in ["filename", "run_id", "judge_model", "judge_instance", "judge_id"]
         ]
         pd.DataFrame(results, columns=columns).to_csv(
             f"{output_folder}/{filename}", index=False

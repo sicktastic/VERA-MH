@@ -69,13 +69,13 @@ Where
 **Multiple judge models**: You can use multiple different judge models and/or multiple instances:
 ```bash
 # Multiple different models
-python judge.py -f conversations/{YOUR_FOLDER} -j gpt-4o claude-3-5-sonnet-20241022
+python judge.py -f conversations/{YOUR_FOLDER} -j gpt-4o claude-sonnet-4-20250514
 
 # Multiple instances of the same model (for reliability testing)
 python judge.py -f conversations/{YOUR_FOLDER} -j gpt-4o:3
 
 # Combine both: different models with multiple instances
-python judge.py -f conversations/{YOUR_FOLDER} -j gpt-4o:2 claude-3-5-sonnet-20241022:3
+python judge.py -f conversations/{YOUR_FOLDER} -j gpt-4o:2 claude-sonnet-4-20250514:3
 ```
 
 Most of the interesting data is contained in the [`data`](data) folder, specifically:
