@@ -125,21 +125,19 @@ def _create_evaluation_jobs(
 
 
 async def _worker(
-    worker_id: int,
+    worker_id: int | str,
     queue: Queue,
     results: List[Dict[str, Any]],
     total_jobs: int,
-    judge_model_filter: Optional[str] = None,
 ):
     """
     Worker that processes evaluation jobs from the queue.
 
     Args:
-        worker_id: Unique identifier for this worker
+        worker_id: Unique identifier for this worker (int or str)
         queue: Queue containing job tuples
         results: Shared list to append results to
         total_jobs: Total number of jobs for progress tracking
-        judge_model_filter: If set, only process jobs for this judge model
     """
     while True:
         try:
@@ -148,11 +146,6 @@ async def _worker(
             break
 
         conversation_file, judge_model, instance, judge_id, output_folder = job
-
-        # Skip if worker is filtered to a specific judge model
-        if judge_model_filter and judge_model != judge_model_filter:
-            queue.task_done()
-            continue
 
         completed = len(results)
         print(
@@ -228,7 +221,6 @@ async def _run_workers_with_queue(
                         queue,
                         results,
                         total_jobs,
-                        judge_model_filter=None,
                     )
                 )
                 for i in range(num_workers)
@@ -253,9 +245,7 @@ async def _run_workers_with_queue(
 
         # Create workers
         workers = [
-            asyncio.create_task(
-                _worker(i, queue, results, total_jobs, judge_model_filter=None)
-            )
+            asyncio.create_task(_worker(i, queue, results, total_jobs))
             for i in range(num_workers)
         ]
 
