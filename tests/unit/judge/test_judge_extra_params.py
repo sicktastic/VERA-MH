@@ -1,7 +1,7 @@
 """Unit tests for judge model extra parameters functionality."""
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -58,68 +58,98 @@ class TestJudgeExtraParams:
         # Verify standard model param is still accessible
         assert judge.judge_model == "claude-3-7-sonnet"
 
-    @pytest.mark.skip(
-        reason="Mocking LLMFactory in async flow is complex; covered by runner tests"
-    )
     @pytest.mark.asyncio
     async def test_llm_judge_passes_extra_params_in_async_evaluation(
-        self, fixtures_dir: Path
+        self, tmp_path: Path, fixtures_dir: Path
     ):
         """Test that extra params are passed to LLMFactory during async evaluation."""
         extra_params = {"temperature": 0.7, "max_tokens": 1000}
+        captured_kwargs = {}
 
-        # Patch at both the source and the import location
-        with patch("judge.llm_judge.LLMFactory") as mock_factory_class:
-            from judge.response_models import QuestionResponse
+        # Create a simple rubric prompt file for testing (without persona placeholders)
+        test_rubric_dir = tmp_path / "test_rubrics"
+        test_rubric_dir.mkdir()
 
-            # Create a mock LLM that supports structured output
-            mock_llm = MagicMock()
-            mock_llm.__class__.__name__ = "ClaudeLLM"
+        # Copy the simple rubric file
+        import shutil
 
-            # Mock the generate_structured method to return a proper response
-            mock_response = QuestionResponse(
-                answer="No", reasoning="Test reasoning", question_text="Test question"
+        shutil.copy(
+            fixtures_dir / "rubric_simple.tsv", test_rubric_dir / "rubric_simple.tsv"
+        )
+        shutil.copy(
+            fixtures_dir / "question_prompt.txt",
+            test_rubric_dir / "question_prompt.txt",
+        )
+
+        # Create a simple rubric prompt that only uses {conversation}
+        simple_prompt = (
+            "You are evaluating the following conversation:\n\n"
+            "{conversation}\n\n"
+            "Answer the following questions carefully."
+        )
+        (test_rubric_dir / "rubric_prompt_beginning.txt").write_text(simple_prompt)
+
+        def create_mock_llm(**kwargs):
+            """Capture kwargs and return a MockLLM that supports structured output."""
+            # Store all kwargs for verification
+            captured_kwargs.update(kwargs)
+
+            # Import MockLLM for proper JudgeLLM implementation
+            from tests.mocks.mock_llm import MockLLM
+
+            # Create MockLLM with captured kwargs
+            return MockLLM(
+                name=kwargs.get("name", "mock-llm"),
+                system_prompt=kwargs.get("system_prompt"),
+                temperature=kwargs.get("temperature", 0.7),
+                max_tokens=kwargs.get("max_tokens", 1000),
+                responses=[
+                    '{"answer": "No", "reasoning": "Test reasoning", '
+                    '"question_text": "Test question"}'
+                ],
             )
-            mock_llm.generate_structured = AsyncMock(return_value=mock_response)
 
-            # Setup the factory mock
-            mock_factory_class.create_llm.return_value = mock_llm
-
+        # Patch LLMFactory.create_llm to capture parameters
+        with patch(
+            "judge.llm_judge.LLMFactory.create_llm", side_effect=create_mock_llm
+        ):
             judge = LLMJudge(
                 judge_model="claude-3-7-sonnet",
                 judge_model_extra_params=extra_params,
-                rubric_folder=str(fixtures_dir),
+                rubric_folder=str(test_rubric_dir),
                 rubric_file="rubric_simple.tsv",
                 rubric_prompt_beginning_file="rubric_prompt_beginning.txt",
             )
 
             # Create a simple conversation for testing
-            conversation_file = fixtures_dir / "test_conversation.txt"
+            conversation_file = tmp_path / "test_conversation.txt"
             conversation_file.write_text("User: Hello\nAssistant: Hi there!")
 
             # Run async evaluation - this will trigger LLM creation
-            try:
-                await judge.evaluate_conversation_question_flow(
-                    str(conversation_file),
-                    output_folder=str(fixtures_dir),
-                    auto_save=False,
-                )
-            except (KeyError, AttributeError, TypeError):
-                # Expected errors from mock navigation or incomplete evaluation
-                # We only care that create_llm was called correctly
-                pass
+            result = await judge.evaluate_conversation_question_flow(
+                str(conversation_file),
+                output_folder=str(tmp_path),
+                auto_save=False,
+            )
+
+            # Verify evaluation completed
+            assert result is not None
+            assert isinstance(result, dict)
 
             # Verify create_llm was called with extra params
             assert (
-                mock_factory_class.create_llm.called
-            ), "LLMFactory.create_llm should be called during evaluation"
-            call_kwargs = mock_factory_class.create_llm.call_args[1]
+                "temperature" in captured_kwargs
+            ), f"Expected temperature in {captured_kwargs}"
             assert (
-                "temperature" in call_kwargs
-            ), f"Expected temperature in {call_kwargs}"
-            assert call_kwargs["temperature"] == 0.7
-            assert "max_tokens" in call_kwargs, f"Expected max_tokens in {call_kwargs}"
-            assert call_kwargs["max_tokens"] == 1000
+                captured_kwargs["temperature"] == 0.7
+            ), f"Expected temperature=0.7, got {captured_kwargs.get('temperature')}"
+            assert (
+                "max_tokens" in captured_kwargs
+            ), f"Expected max_tokens in {captured_kwargs}"
+            assert (
+                captured_kwargs["max_tokens"] == 1000
+            ), f"Expected max_tokens=1000, got {captured_kwargs.get('max_tokens')}"
+            assert captured_kwargs["model_name"] == "claude-3-7-sonnet"
 
     def test_llm_judge_extra_params_with_none(self, fixtures_dir: Path):
         """Test that passing None for extra_params works correctly."""
