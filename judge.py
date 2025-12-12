@@ -68,6 +68,7 @@ async def main(args):
             verbose=True,
             judge_model_extra_params=args.judge_model_extra_params,
             per_judge=args.per_judge,
+            verbose_workers=args.verbose_workers,
         )
 
 
@@ -161,6 +162,12 @@ if __name__ == "__main__":
             "If set, --max-concurrent applies per judge model. "
             "Otherwise, it applies to total workers across all judges."
         ),
+    )
+
+    parser.add_argument(
+        "--verbose-workers",
+        action="store_true",
+        help="Enable verbose worker logging to show concurrency behavior",
     )
 
     args = parser.parse_args()

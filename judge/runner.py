@@ -147,6 +147,7 @@ async def _worker(
     queue: Queue,
     results: List[Dict[str, Any]],
     total_jobs: int,
+    verbose_workers: bool = False,
 ):
     """
     Worker that processes evaluation jobs from the queue.
@@ -156,12 +157,24 @@ async def _worker(
         queue: Queue containing job tuples
         results: Shared list to append results to
         total_jobs: Total number of jobs for progress tracking
+        verbose_workers: Enable verbose logging for worker lifecycle
     """
+    import time
+    from datetime import datetime
+
+    job_count = 0
+
+    if verbose_workers:
+        start_time = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        print(f"[Worker {worker_id}] Started at {start_time}")
+
     while True:
         try:
             job = queue.get_nowait()
         except asyncio.QueueEmpty:
             break
+
+        job_count += 1
 
         (
             conversation,
@@ -175,11 +188,19 @@ async def _worker(
 
         completed = len(results)
         conversation_filename = conversation.metadata.get("filename", "unknown.txt")
-        print(
-            f"[Worker {worker_id}] ({completed + 1}/{total_jobs}) "
-            f"{conversation_filename} | {judge_model} "
-            f"(instance {instance}, id {judge_id})"
-        )
+
+        if verbose_workers:
+            print(
+                f"[Worker {worker_id}] Processing: {conversation_filename} "
+                f"for {judge_model} (judge {instance})"
+            )
+            job_start = time.time()
+        else:
+            print(
+                f"[Worker {worker_id}] ({completed + 1}/{total_jobs}) "
+                f"{conversation_filename} | {judge_model} "
+                f"(instance {instance}, id {judge_id})"
+            )
 
         try:
             result = await _evaluate_single_conversation_with_judge(
@@ -192,6 +213,13 @@ async def _worker(
                 extra_params,
             )
             results.append(result)
+
+            if verbose_workers:
+                duration = time.time() - job_start
+                print(
+                    f"[Worker {worker_id}] Completed: {conversation_filename} "
+                    f"({duration:.1f}s)"
+                )
         except Exception as e:
             print(
                 f"[Worker {worker_id}] Failed to evaluate "
@@ -199,6 +227,9 @@ async def _worker(
             )
 
         queue.task_done()
+
+    if verbose_workers:
+        print(f"[Worker {worker_id}] Finished. Processed {job_count} jobs.")
 
 
 async def _run_workers_with_queue(
@@ -215,6 +246,7 @@ async def _run_workers_with_queue(
     ],
     max_concurrent: Optional[int],
     per_judge: bool = False,
+    verbose_workers: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Run evaluation jobs using a worker queue with concurrency control.
@@ -265,11 +297,25 @@ async def _run_workers_with_queue(
                         queue,
                         results,
                         total_jobs,
+                        verbose_workers,
                     )
                 )
                 for i in range(num_workers)
             ]
             all_workers.extend(workers)
+
+        # Print worker pool summary
+        if verbose_workers:
+            from datetime import datetime
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            print("\n[VERBOSE] Worker pool created:")
+            print(f"  - Total workers: {len(all_workers)}")
+            print("  - Mode: per-judge concurrency")
+            print(f"  - Judge models: {', '.join(jobs_by_model.keys())}")
+            max_str = max_concurrent if max_concurrent else "unlimited"
+            print(f"  - Max concurrent per judge: {max_str}")
+            print(f"  - Started at: {timestamp}\n")
 
         # Wait for all workers to complete
         await asyncio.gather(*all_workers)
@@ -289,9 +335,21 @@ async def _run_workers_with_queue(
 
         # Create workers
         workers = [
-            asyncio.create_task(_worker(i, queue, results, total_jobs))
+            asyncio.create_task(_worker(i, queue, results, total_jobs, verbose_workers))
             for i in range(num_workers)
         ]
+
+        # Print worker pool summary
+        if verbose_workers:
+            from datetime import datetime
+
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            print("\n[VERBOSE] Worker pool created:")
+            print(f"  - Total workers: {num_workers}")
+            print("  - Mode: global concurrency")
+            max_str = max_concurrent if max_concurrent else "unlimited"
+            print(f"  - Max concurrent: {max_str}")
+            print(f"  - Started at: {timestamp}\n")
 
         # Wait for all workers to complete
         await asyncio.gather(*workers)
@@ -307,6 +365,7 @@ async def batch_evaluate_with_individual_judges(
     max_concurrent: Optional[int],
     per_judge: bool,
     judge_model_extra_params: Optional[Dict[str, Any]] = None,
+    verbose_workers: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Evaluate conversations with multiple judge models using queue workers.
@@ -353,7 +412,9 @@ async def batch_evaluate_with_individual_judges(
     )
 
     # Run workers with queue
-    results = await _run_workers_with_queue(jobs, max_concurrent, per_judge)
+    results = await _run_workers_with_queue(
+        jobs, max_concurrent, per_judge, verbose_workers
+    )
 
     print(f"Completed {len(results)}/{total_evaluations} evaluations successfully")
     return results
@@ -372,6 +433,7 @@ async def judge_conversations(
     judge_model_extra_params: Optional[Dict[str, Any]] = None,
     max_concurrent: Optional[int] = None,
     per_judge: bool = False,
+    verbose_workers: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Judge conversations with multiple judge models.
@@ -433,6 +495,7 @@ async def judge_conversations(
         max_concurrent,
         per_judge,
         judge_model_extra_params,
+        verbose_workers,
     )
 
     if save_aggregated_results and results:
