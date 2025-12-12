@@ -9,6 +9,7 @@ import asyncio
 
 from judge import judge_conversations, judge_single_conversation
 from judge.llm_judge import LLMJudge
+from utils.utils import parse_key_value_list
 
 
 async def main(args):
@@ -30,7 +31,10 @@ async def main(args):
     if args.conversation:
         # Single conversation with first judge model (single instance)
         first_model = next(iter(judge_models.keys()))
-        judge = LLMJudge(judge_model=first_model)
+        judge = LLMJudge(
+            judge_model=first_model,
+            judge_model_extra_params=args.judge_model_extra_params,
+        )
         await judge_single_conversation(
             judge, args.conversation, args.rubrics, args.output
         )
@@ -44,6 +48,7 @@ async def main(args):
             output_root=args.output,
             limit=args.limit,
             verbose=True,
+            judge_model_extra_params=args.judge_model_extra_params,
             per_judge=args.per_judge,
         )
 
@@ -88,6 +93,18 @@ if __name__ == "__main__":
             "claude-3-5-sonnet-20241022:3, "
             "claude-3-5-sonnet-20241022:2 gpt-4o:1"
         ),
+    )
+
+    parser.add_argument(
+        "--judge-model-extra-params",
+        "-jep",
+        help=(
+            "Extra parameters for the judge model. "
+            "Examples: temperature=0.7, max_tokens=1000. "
+            "Default: temperature=0 (unless overridden)"
+        ),
+        type=parse_key_value_list,
+        default={},
     )
 
     # optional limit
