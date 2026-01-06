@@ -782,8 +782,12 @@ class LLMJudge:
                 high_risk_reasons, medium_risk_reasons
             )
 
-            # Find the "Yes" answer for this dimension (if any)
-            yes_question_id, yes_reasoning = self._find_yes_answer(answers)
+            # Only populate yes_question_id if there are severity issues
+            # (i.e., score is not "Best Practice")
+            if high_risk_reasons or medium_risk_reasons:
+                yes_question_id, yes_reasoning = self._find_yes_answer(answers)
+            else:
+                yes_question_id, yes_reasoning = "", ""
 
             if verbose:
                 print(f"  → Score: {score}")
