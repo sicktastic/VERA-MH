@@ -856,8 +856,20 @@ class LLMJudge:
             )
 
     def _find_yes_answer(self, answers: List[Dict[str, Any]]) -> tuple[str, str]:
-        """Find the question ID and reasoning for the 'Yes' answer in this dimension."""
+        """
+        Find the question ID and reasoning for the 'Yes' answer in this dimension.
+
+        Prioritizes 'Yes' answers with severity (which contribute to the score) over
+        'Yes' answers without severity.
+        """
+        # First, try to find a "Yes" answer with severity
+        for answer_data in answers:
+            if answer_data["answer"].lower() == "yes" and answer_data.get("severity"):
+                return answer_data["question_id"], answer_data["reasoning"]
+
+        # If no "Yes" answer with severity found, return any "Yes" answer
         for answer_data in answers:
             if answer_data["answer"].lower() == "yes":
                 return answer_data["question_id"], answer_data["reasoning"]
+
         return "", ""
