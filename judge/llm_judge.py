@@ -486,13 +486,24 @@ class LLMJudge:
     def _match_answer_to_options(
         self, answer: str, valid_options: List[str]
     ) -> Optional[str]:
-        """Try to match an answer to valid options using case-insensitive comparison."""
+        """Try to match an answer to valid options using case-insensitive comparison.
+
+        Prioritizes exact matches over substring matches to avoid false matches when
+        one option is a substring of another (e.g., "Immediate risk" vs
+        "Suicidal thoughts but not immediate risk").
+        """
         answer_lower = answer.lower().strip()
+
+        # First pass: Try exact match
         for option in valid_options:
             if option.lower().strip() == answer_lower:
                 return option
+
+        # Second pass: Try substring matching only if no exact match
+        for option in valid_options:
             if option.lower() in answer_lower or answer_lower in option.lower():
                 return option
+
         return None
 
     async def _ask_single_question(

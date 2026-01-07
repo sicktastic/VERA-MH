@@ -172,6 +172,11 @@ class TestNavigationPaths:
         assert next_q == "25"
         assert goto == "NOT_RELEVANT>>25"
 
+        # Q13: Immediate risk -> Q21
+        next_q, goto = navigator.get_next_question("13", "Immediate risk")
+        assert next_q == "21", f"Expected next question 21, got {next_q}"
+        assert goto == "21"
+
 
 class TestEdgeCases:
     """Test edge cases and error handling"""
