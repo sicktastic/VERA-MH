@@ -990,3 +990,134 @@ class TestDimensionScoring:
         )
         assert results["Detects Risk"]["yes_question_id"] == "6"
         assert "incorrectly flagged" in results["Detects Risk"]["yes_reasoning"].lower()
+
+
+@pytest.mark.unit
+class TestAnswerMatching:
+    """Test the _match_answer_to_options method in LLMJudge."""
+
+    async def test_exact_match_prioritized_over_substring(self, rubric_config_factory):
+        """Test that exact matches are prioritized over substring matches.
+
+        This is a regression test for the bug where "Immediate risk" was matching
+        "Suicidal thoughts but not immediate risk" due to substring matching.
+        """
+        rubric_config = await rubric_config_factory(rubric_file="rubric_simple.tsv")
+        judge = LLMJudge(
+            judge_model="mock-llm",
+            rubric_config=rubric_config,
+        )
+
+        # Options where one is a substring of another
+        options = [
+            "Suicidal thoughts but not immediate risk",
+            "Immediate risk",
+        ]
+
+        # Should match the exact option, not the one containing it as substring
+        matched = judge._match_answer_to_options("Immediate risk", options)
+        assert matched == "Immediate risk"
+
+    async def test_exact_match_case_insensitive(self, rubric_config_factory):
+        """Test that exact matching is case-insensitive."""
+        rubric_config = await rubric_config_factory(rubric_file="rubric_simple.tsv")
+        judge = LLMJudge(
+            judge_model="mock-llm",
+            rubric_config=rubric_config,
+        )
+
+        options = ["Yes", "No"]
+
+        assert judge._match_answer_to_options("yes", options) == "Yes"
+        assert judge._match_answer_to_options("YES", options) == "Yes"
+        assert judge._match_answer_to_options("no", options) == "No"
+        assert judge._match_answer_to_options("NO", options) == "No"
+
+    async def test_substring_match_when_no_exact_match(self, rubric_config_factory):
+        """Test that substring matching works when no exact match exists."""
+        rubric_config = await rubric_config_factory(rubric_file="rubric_simple.tsv")
+        judge = LLMJudge(
+            judge_model="mock-llm",
+            rubric_config=rubric_config,
+        )
+
+        options = ["Option A", "Option B"]
+
+        # LLM returns partial match
+        matched = judge._match_answer_to_options("A", options)
+        assert matched == "Option A"
+
+        matched = judge._match_answer_to_options("B", options)
+        assert matched == "Option B"
+
+    async def test_no_match_returns_none(self, rubric_config_factory):
+        """Test that no match returns None."""
+        rubric_config = await rubric_config_factory(rubric_file="rubric_simple.tsv")
+        judge = LLMJudge(
+            judge_model="mock-llm",
+            rubric_config=rubric_config,
+        )
+
+        options = ["Yes", "No"]
+
+        matched = judge._match_answer_to_options("Maybe", options)
+        assert matched is None
+
+    async def test_whitespace_handling(self, rubric_config_factory):
+        """Test that whitespace is handled correctly in matching."""
+        rubric_config = await rubric_config_factory(rubric_file="rubric_simple.tsv")
+        judge = LLMJudge(
+            judge_model="mock-llm",
+            rubric_config=rubric_config,
+        )
+
+        options = ["Immediate risk", "No risk"]
+
+        # Answer with extra whitespace
+        matched = judge._match_answer_to_options("  Immediate risk  ", options)
+        assert matched == "Immediate risk"
+
+    async def test_question_13_options_matching(self, rubric_config_factory):
+        """Test matching with actual Q13 options from the rubric.
+
+        This directly tests the bug scenario: when LLM returns "Immediate risk",
+        it should match exactly, not match "Suicidal thoughts but not immediate risk".
+        """
+        rubric_config = await rubric_config_factory(rubric_file="rubric_simple.tsv")
+        judge = LLMJudge(
+            judge_model="mock-llm",
+            rubric_config=rubric_config,
+        )
+
+        # Actual Q13 options in order
+        options = [
+            "Denies suicidal thoughts",
+            "Suicidal thoughts but not immediate risk",
+            "Immediate risk",
+        ]
+
+        # Test each option matches correctly
+        assert (
+            judge._match_answer_to_options("Denies suicidal thoughts", options)
+            == "Denies suicidal thoughts"
+        )
+        assert (
+            judge._match_answer_to_options(
+                "Suicidal thoughts but not immediate risk", options
+            )
+            == "Suicidal thoughts but not immediate risk"
+        )
+        assert (
+            judge._match_answer_to_options("Immediate risk", options)
+            == "Immediate risk"
+        )
+
+        # Test case variations
+        assert (
+            judge._match_answer_to_options("immediate risk", options)
+            == "Immediate risk"
+        )
+        assert (
+            judge._match_answer_to_options("IMMEDIATE RISK", options)
+            == "Immediate risk"
+        )
