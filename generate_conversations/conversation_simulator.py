@@ -1,5 +1,8 @@
 from typing import Any, Dict, List, Optional, Set
 
+from langchain_core.messages import AIMessage, HumanMessage
+
+from generate_conversations.conversation_turn import ConversationTurn
 from llm_clients import LLMInterface
 from utils.conversation_utils import save_conversation_to_file
 
@@ -10,7 +13,7 @@ class ConversationSimulator:
     def __init__(self, persona: LLMInterface, agent: LLMInterface):
         self.persona = persona
         self.agent = agent
-        self.conversation_history: List[Dict[str, Any]] = []
+        self.conversation_history: List[ConversationTurn] = []
 
         # Define termination signals that indicate persona wants to end the conversation
         self.termination_signals: Set[str] = set()
@@ -90,26 +93,34 @@ class ConversationSimulator:
             # Record start time for this turn
 
             # Generate response with conversation history
+            # Convert to dict format for LLM interface
+            history_dicts = [t.to_dict() for t in self.conversation_history]
             response = await current_speaker.generate_response(
-                message=current_message, conversation_history=self.conversation_history
+                message=current_message, conversation_history=history_dicts
             )
 
             total_words += len(response.split())
-            # Record this turn
-            self.conversation_history.append(
-                {
-                    "turn": turn + 1,
-                    "speaker": current_speaker.get_name(),
-                    "input": current_message or "",
-                    "response": response,
-                    "early_termination": False,
-                    "logging": current_speaker.get_last_response_metadata(),
-                }
+
+            # Create LangChain message based on speaker
+            if current_speaker == self.persona:
+                lc_message = HumanMessage(content=response)
+            else:
+                lc_message = AIMessage(content=response)
+
+            # Record this turn using ConversationTurn
+            turn_obj = ConversationTurn(
+                turn=turn + 1,
+                speaker=current_speaker.get_name(),
+                input_message=current_message or "",
+                message=lc_message,
+                early_termination=False,
+                logging_metadata=current_speaker.get_last_response_metadata(),
             )
+            self.conversation_history.append(turn_obj)
 
             # Check if persona wants to end the conversation
             if self._should_terminate_conversation(response, current_speaker):
-                self.conversation_history[-1]["early_termination"] = True
+                self.conversation_history[-1].early_termination = True
                 break
 
             # Check if we've reached the maximum total words
@@ -125,12 +136,15 @@ class ConversationSimulator:
             current_message = response
             current_speaker, next_speaker = next_speaker, current_speaker
 
-        return self.conversation_history
+        # Return dict format for backward compatibility
+        return [t.to_dict() for t in self.conversation_history]
 
     def save_conversation(self, filename: str, folder="conversations") -> None:
         """Save the conversation to a text file."""
 
         # TODO: why is this two functions
+        # Convert to dict format for file saving
+        history_dicts = [t.to_dict() for t in self.conversation_history]
         save_conversation_to_file(
-            self.conversation_history, filename, folder, self.persona.get_name()
+            history_dicts, filename, folder, self.persona.get_name()
         )

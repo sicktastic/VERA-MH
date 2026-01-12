@@ -33,7 +33,6 @@ class ConversationRunner:
         folder_name: str = "conversations",
         max_concurrent: Optional[int] = None,
         max_total_words: Optional[int] = None,
-        multiple_responses: bool = False,
     ):
         self.persona_model_config = persona_model_config
         self.agent_model_config = agent_model_config
@@ -46,7 +45,6 @@ class ConversationRunner:
         # Default: None - run all conversations concurrently
         self.max_concurrent = max_concurrent
         self.max_total_words = max_total_words
-        self.multiple_responses = multiple_responses
 
         self.AGENT_SYSTEM_PROMPT = self.agent_model_config.get(
             "system_prompt", "You are a helpful AI assistant."
@@ -111,7 +109,6 @@ class ConversationRunner:
             initial_message=None,
             max_turns=max_turns,
             max_total_words=self.max_total_words,
-            multiple_responses=self.multiple_responses,
         )
 
         # Log each conversation turn
@@ -165,9 +162,7 @@ class ConversationRunner:
     ) -> List[Dict[str, Any]]:
         """Run multiple conversations concurrently."""
         # Load prompts from CSV based on persona names
-        personas = load_prompts_from_csv(
-            persona_names, multiple_responses=self.multiple_responses
-        )
+        personas = load_prompts_from_csv(persona_names)
 
         # Load agent configuration (fixed, shared across all conversations)
         agent = LLMFactory.create_llm(

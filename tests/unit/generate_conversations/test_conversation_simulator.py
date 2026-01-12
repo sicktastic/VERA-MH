@@ -298,8 +298,10 @@ class TestConversationSimulator:
         assert len(history1) == 2
         assert len(history2) == 3
         assert history2[0]["turn"] == 1  # Should restart from turn 1
-        assert simulator.conversation_history == history2
-        assert simulator.conversation_history != history1
+        # Convert internal representation to dict for comparison
+        internal_history_dicts = [t.to_dict() for t in simulator.conversation_history]
+        assert internal_history_dicts == history2
+        assert internal_history_dicts != history1
 
     async def test_case_insensitive_termination_detection(self):
         """Test that termination signals are detected case-insensitively."""
@@ -409,9 +411,12 @@ class TestConversationSimulator:
         ) as mock_save:
             simulator.save_conversation("test_convo.txt", folder="test_folder")
 
-            # Assert
+            # Assert - should convert to dict format before saving
+            expected_history_dicts = [
+                t.to_dict() for t in simulator.conversation_history
+            ]
             mock_save.assert_called_once_with(
-                simulator.conversation_history,
+                expected_history_dicts,
                 "test_convo.txt",
                 "test_folder",
                 "test-persona",
