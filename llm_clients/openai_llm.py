@@ -2,9 +2,11 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
+
+from utils.conversation_utils import build_langchain_messages
 
 from .config import Config
 from .llm_interface import JudgeLLM
@@ -73,19 +75,8 @@ class OpenAILLM(JudgeLLM):
         if self.system_prompt:
             messages.append(SystemMessage(content=self.system_prompt))
 
-        # Add conversation history if provided
-        if conversation_history:
-            for turn in conversation_history:
-                speaker = turn.get("speaker")
-                text = turn.get("response")
-                if speaker == "persona":
-                    messages.append(HumanMessage(content=text))
-                elif speaker in ["chatbot", "agent"]:
-                    messages.append(AIMessage(content=text))
-
-        # Add current message
-        if message:
-            messages.append(HumanMessage(content=message))
+        # Build messages from history and current message
+        messages.extend(build_langchain_messages(conversation_history, message))
 
         try:
             start_time = time.time()

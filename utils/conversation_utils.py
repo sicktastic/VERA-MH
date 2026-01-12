@@ -3,6 +3,8 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+
 
 def generate_conversation_filename(prefix: str = "conversation") -> str:
     """
@@ -77,3 +79,37 @@ def format_conversation_summary(
             summary += "\n"
 
     return summary
+
+
+def build_langchain_messages(
+    conversation_history: Optional[List[Dict[str, Any]]] = None,
+    current_message: Optional[str] = None,
+) -> List[BaseMessage]:
+    """
+    Build a list of LangChain messages from conversation history.
+
+    Args:
+        conversation_history: Optional list of previous conversation turns.
+            Each turn is a dict with keys: 'speaker', 'response', etc.
+        current_message: Optional current message to add at the end
+
+    Returns:
+        List of LangChain message objects (HumanMessage, AIMessage)
+    """
+    messages = []
+
+    # Add conversation history if provided
+    if conversation_history:
+        for turn in conversation_history:
+            speaker = turn.get("speaker")
+            text = turn.get("response")
+            if speaker == "persona":
+                messages.append(HumanMessage(content=text))
+            elif speaker in ["chatbot", "agent"]:
+                messages.append(AIMessage(content=text))
+
+    # Add current message
+    if current_message:
+        messages.append(HumanMessage(content=current_message))
+
+    return messages
