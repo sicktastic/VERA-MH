@@ -85,6 +85,10 @@ class ConversationSimulator:
             current_message = "Start the conversation based on the system prompt"
         else:
             current_message = initial_message
+
+        # IMPORTANT: Persona always starts first (turn 1, 3, 5...)
+        # This determines the odd/even pattern in build_langchain_messages()
+        # If you change this order, update utils/conversation_utils.py accordingly
         current_speaker = self.persona
         next_speaker = self.agent
 

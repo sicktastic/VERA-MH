@@ -1,0 +1,166 @@
+"""Unit tests for conversation utility functions."""
+
+from langchain_core.messages import AIMessage, HumanMessage
+
+from utils.conversation_utils import build_langchain_messages
+
+
+class TestBuildLangchainMessages:
+    """Test build_langchain_messages function."""
+
+    def test_build_messages_with_no_history(self):
+        """Test with only current message, no history."""
+        messages = build_langchain_messages(
+            conversation_history=None, current_message="Hello"
+        )
+
+        assert len(messages) == 1
+        assert isinstance(messages[0], HumanMessage)
+        assert messages[0].content == "Hello"
+
+    def test_build_messages_with_empty_history(self):
+        """Test with empty history list."""
+        messages = build_langchain_messages(
+            conversation_history=[], current_message="Hello"
+        )
+
+        assert len(messages) == 1
+        assert isinstance(messages[0], HumanMessage)
+        assert messages[0].content == "Hello"
+
+    def test_build_messages_with_custom_speaker_names(self):
+        """Test that custom speaker names work correctly using turn indices."""
+        # This is the critical test for the bug fix
+        history = [
+            {
+                "turn": 1,
+                "speaker": "g gpt4o Alice",  # Custom persona name
+                "input": "Start",
+                "response": "Hi, I'm Alice",
+            },
+            {
+                "turn": 2,
+                "speaker": "therapist-bot",  # Custom agent name
+                "input": "Hi, I'm Alice",
+                "response": "Hello Alice, how are you?",
+            },
+            {
+                "turn": 3,
+                "speaker": "g gpt4o Alice",  # Custom persona name
+                "input": "Hello Alice, how are you?",
+                "response": "I'm doing well",
+            },
+        ]
+
+        messages = build_langchain_messages(
+            conversation_history=history, current_message="How can I help?"
+        )
+
+        # Should have 3 history messages + 1 current = 4 total
+        assert len(messages) == 4
+
+        # Turn 1 (odd) should be HumanMessage
+        assert isinstance(messages[0], HumanMessage)
+        assert messages[0].content == "Hi, I'm Alice"
+
+        # Turn 2 (even) should be AIMessage
+        assert isinstance(messages[1], AIMessage)
+        assert messages[1].content == "Hello Alice, how are you?"
+
+        # Turn 3 (odd) should be HumanMessage
+        assert isinstance(messages[2], HumanMessage)
+        assert messages[2].content == "I'm doing well"
+
+        # Current message should be HumanMessage
+        assert isinstance(messages[3], HumanMessage)
+        assert messages[3].content == "How can I help?"
+
+    def test_build_messages_with_standard_speaker_names(self):
+        """Test that standard speaker names still work correctly."""
+        history = [
+            {
+                "turn": 1,
+                "speaker": "persona",
+                "input": "Start",
+                "response": "Hello",
+            },
+            {
+                "turn": 2,
+                "speaker": "chatbot",
+                "input": "Hello",
+                "response": "Hi there",
+            },
+            {
+                "turn": 3,
+                "speaker": "persona",
+                "input": "Hi there",
+                "response": "How are you?",
+            },
+        ]
+
+        messages = build_langchain_messages(
+            conversation_history=history, current_message=None
+        )
+
+        assert len(messages) == 3
+        assert isinstance(messages[0], HumanMessage)
+        assert isinstance(messages[1], AIMessage)
+        assert isinstance(messages[2], HumanMessage)
+
+    def test_build_messages_long_conversation(self):
+        """Test with longer conversation to verify turn alternation."""
+        history = [
+            {"turn": i + 1, "speaker": f"speaker_{i}", "response": f"Message {i + 1}"}
+            for i in range(10)
+        ]
+
+        messages = build_langchain_messages(conversation_history=history)
+
+        assert len(messages) == 10
+
+        # Verify alternating pattern
+        for i, msg in enumerate(messages):
+            turn_number = i + 1
+            if turn_number % 2 == 1:  # Odd turns
+                assert isinstance(msg, HumanMessage)
+            else:  # Even turns
+                assert isinstance(msg, AIMessage)
+            assert msg.content == f"Message {turn_number}"
+
+    def test_build_messages_no_current_message(self):
+        """Test with history but no current message."""
+        history = [
+            {"turn": 1, "speaker": "persona", "response": "Hello"},
+            {"turn": 2, "speaker": "agent", "response": "Hi"},
+        ]
+
+        messages = build_langchain_messages(
+            conversation_history=history, current_message=None
+        )
+
+        assert len(messages) == 2
+        assert isinstance(messages[0], HumanMessage)
+        assert isinstance(messages[1], AIMessage)
+
+    def test_build_messages_empty_inputs(self):
+        """Test with all empty inputs."""
+        messages = build_langchain_messages(
+            conversation_history=None, current_message=None
+        )
+
+        assert len(messages) == 0
+
+    def test_build_messages_preserves_content(self):
+        """Test that message content is preserved exactly."""
+        multiline_text = "Line 1\nLine 2\nLine 3"
+        unicode_text = "Hello 🌍 世界"
+
+        history = [
+            {"turn": 1, "speaker": "custom_persona", "response": multiline_text},
+            {"turn": 2, "speaker": "custom_agent", "response": unicode_text},
+        ]
+
+        messages = build_langchain_messages(conversation_history=history)
+
+        assert messages[0].content == multiline_text
+        assert messages[1].content == unicode_text

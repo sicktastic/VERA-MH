@@ -88,9 +88,16 @@ def build_langchain_messages(
     """
     Build a list of LangChain messages from conversation history.
 
+    Uses turn indices to determine message type since speaker names can be custom:
+    - Odd turns (1, 3, 5...) are from persona (HumanMessage)
+    - Even turns (2, 4, 6...) are from agent (AIMessage)
+
+    IMPORTANT: This assumes persona always speaks first (see ConversationSimulator
+    line 88-89). If the speaker order changes, this logic must be updated.
+
     Args:
         conversation_history: Optional list of previous conversation turns.
-            Each turn is a dict with keys: 'speaker', 'response', etc.
+            Each turn is a dict with keys: 'turn', 'response', etc.
         current_message: Optional current message to add at the end
 
     Returns:
@@ -101,11 +108,16 @@ def build_langchain_messages(
     # Add conversation history if provided
     if conversation_history:
         for turn in conversation_history:
-            speaker = turn.get("speaker")
+            turn_number = turn.get("turn")
             text = turn.get("response")
-            if speaker == "persona":
+            # Skip turns without turn number
+            if turn_number is None:
+                continue
+            # Odd turns (1, 3, 5...) are from persona (HumanMessage)
+            # Even turns (2, 4, 6...) are from agent (AIMessage)
+            if turn_number % 2 == 1:
                 messages.append(HumanMessage(content=text))
-            elif speaker in ["chatbot", "agent"]:
+            else:
                 messages.append(AIMessage(content=text))
 
     # Add current message
