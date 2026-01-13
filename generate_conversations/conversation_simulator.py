@@ -136,9 +136,9 @@ class ConversationSimulator:
                 break
 
             # Check if we've reached the maximum total words
-            # TODO: chatbot should not be hardcoded
+            # Only check when provider agent is speaking (not persona)
             if (
-                current_speaker.get_name() == "chatbot"
+                current_speaker == self.agent
                 and max_total_words is not None
                 and total_words >= max_total_words
             ):
