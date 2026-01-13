@@ -20,15 +20,17 @@ class LLMInterface(ABC):
     @abstractmethod
     async def generate_response(
         self,
-        message: Optional[str] = None,
         conversation_history: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
-        """Generate a response to the given message asynchronously.
+        """Generate a response based on conversation history.
 
         Args:
-            message: The current message to respond to
-            conversation_history: Optional list of previous conversation turns.
-                Each turn is a dict with keys: 'speaker', 'response', etc.
+            conversation_history: List of previous conversation turns.
+                Each turn is a dict with keys: 'turn', 'speaker', 'response'.
+                On the first turn (turn 0), conversation_history will contain
+                a single entry with turn=0, speaker="system", and the initial
+                message in the 'response' field. This provides context for
+                starting the conversation.
 
         Returns:
             str: The response text. Metadata available via

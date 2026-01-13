@@ -105,28 +105,27 @@ def build_persona_role_reminder() -> str:
 
 def build_langchain_messages(
     conversation_history: Optional[List[Dict[str, Any]]] = None,
-    current_message: Optional[str] = None,
     system_prompt: Optional[str] = None,
 ) -> List[BaseMessage]:
     """
     Build a list of LangChain messages from conversation history.
 
     Uses turn indices to determine message type since speaker names can be custom:
-    - Odd turns (1, 3, 5...) are from persona (HumanMessage)
-    - Even turns (2, 4, 6...) are from agent (AIMessage)
+    - Turn 0: Initial message (HumanMessage)
+    - Odd turns (1, 3, 5...): Persona responses (HumanMessage)
+    - Even turns (2, 4, 6...): Agent responses (AIMessage)
 
     IMPORTANT: This assumes persona always speaks first (see ConversationSimulator
-    line 88-89). If the speaker order changes, this logic must be updated.
+    line 90-92). If the speaker order changes, this logic must be updated.
 
     Args:
         conversation_history: Optional list of previous conversation turns.
-            Each turn is a dict with keys: 'turn', 'response', etc.
-        current_message: Optional current message to add at the end.
-            NOTE: If current_message matches the last message in history, it will
-            NOT be added again to avoid duplication.
+            Each turn is a dict with keys: 'turn', 'speaker', 'response'.
+            Turn 0 contains the initial message with speaker="system".
         system_prompt: Optional system prompt to check if this is a persona.
             If provided and contains "roleplaying as a human user", a role
-            reminder will be automatically injected before conversation history.
+            reminder will be automatically injected before conversation history
+            (but only for turns >= 1, not for turn 0).
 
     Returns:
         List of LangChain message objects (HumanMessage, AIMessage)
@@ -134,8 +133,12 @@ def build_langchain_messages(
     messages = []
 
     # Auto-detect persona and add role reminder if needed
+    # Only add role reminder if we have real conversation history (turn >= 1)
     is_persona = system_prompt and "roleplaying as a human user" in system_prompt
-    if is_persona and conversation_history:
+    has_real_history = conversation_history and any(
+        turn.get("turn", 0) >= 1 for turn in conversation_history
+    )
+    if is_persona and has_real_history:
         debug_print("[DEBUG] Adding role reminder message for persona")
         messages.append(HumanMessage(content=build_persona_role_reminder()))
 
@@ -146,11 +149,20 @@ def build_langchain_messages(
         for turn in conversation_history:
             turn_number = turn.get("turn")
             text = turn.get("response")
+
             # Skip turns without turn number or response
             if turn_number is None or text is None:
                 continue
-            # Odd turns (1, 3, 5...) are from persona (HumanMessage)
-            # Even turns (2, 4, 6...) are from agent (AIMessage)
+
+            # Handle turn 0 (initial message) specially
+            if turn_number == 0:
+                debug_print(f"  Turn 0 -> HumanMessage (initial): {text[:50]}...")
+                messages.append(HumanMessage(content=text))
+                continue
+
+            # Handle regular turns (1, 2, 3, ...)
+            # Odd turns (1, 3, 5...) = persona (HumanMessage)
+            # Even turns (2, 4, 6...) = agent (AIMessage)
             msg_type = "HumanMessage" if turn_number % 2 == 1 else "AIMessage"
             preview = text[:50] + "..." if len(text) > 50 else text
             debug_print(f"  Turn {turn_number} -> {msg_type}: {preview}")
@@ -159,28 +171,11 @@ def build_langchain_messages(
             else:
                 messages.append(AIMessage(content=text))
 
-    # Add current message only if it's not already the last message in history
-    # This prevents duplication when current_message is the same as the last response
-    if current_message:
-        # Check if we already added this message from history
-        if not messages or messages[-1].content != current_message:
-            debug_print(
-                "[DEBUG build_langchain_messages] Adding current_message as "
-                "HumanMessage (not duplicate)"
-            )
-            messages.append(HumanMessage(content=current_message))
-        else:
-            debug_print(
-                "[DEBUG build_langchain_messages] Skipping current_message "
-                "(duplicate of last message)"
-            )
-
     return messages
 
 
 def format_conversation_as_string(
     conversation_history: Optional[List[Dict[str, Any]]] = None,
-    current_message: Optional[str] = None,
     system_prompt: Optional[str] = None,
 ) -> str:
     """
@@ -191,7 +186,6 @@ def format_conversation_as_string(
 
     Args:
         conversation_history: Optional list of previous conversation turns
-        current_message: Optional current message to add at the end
         system_prompt: Optional system prompt to prepend
 
     Returns:
@@ -204,7 +198,7 @@ def format_conversation_as_string(
         full_message = f"System: {system_prompt}\n\n"
 
     # Build LangChain messages using existing utility
-    messages = build_langchain_messages(conversation_history, current_message)
+    messages = build_langchain_messages(conversation_history, system_prompt)
 
     # Convert messages to string format
     for message in messages:
@@ -213,8 +207,8 @@ def format_conversation_as_string(
         elif isinstance(message, AIMessage):
             full_message += f"Assistant: {message.content}\n\n"
 
-    # Add "Assistant:" prompt at the end if there's a current message
-    if current_message and full_message.endswith("\n\n"):
+    # Add "Assistant:" prompt at the end to signal the LLM should respond
+    if messages and full_message.endswith("\n\n"):
         full_message += "Assistant:"
 
     return full_message
