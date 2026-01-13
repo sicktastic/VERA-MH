@@ -84,7 +84,7 @@ class TestConversationSimulator:
         simulator = ConversationSimulator(persona=persona, agent=agent)
 
         # Add termination signals
-        simulator.termination_signals = {"goodbye", "bye"}
+        simulator.termination_signal = "Goodbye"
 
         # Act
         history = await simulator.start_conversation(max_turns=10)
@@ -95,7 +95,7 @@ class TestConversationSimulator:
         # Turn 3: persona says "Goodbye..." and terminates
         assert len(history) == 3  # Should stop after persona says goodbye
         assert history[-1]["early_termination"] is True
-        assert "goodbye" in history[-1]["response"].lower()
+        assert simulator.termination_signal in history[-1]["response"]
 
     async def test_conversation_history_structure(self):
         """Test that conversation history has correct structure."""
@@ -195,7 +195,7 @@ class TestConversationSimulator:
             name="agent", responses=["Goodbye, bye", "Another reply", "More replies"]
         )
         simulator = ConversationSimulator(persona=persona, agent=agent)
-        simulator.termination_signals = {"goodbye", "bye"}
+        simulator.termination_signal = "goodbye"
 
         # Act
         history = await simulator.start_conversation(max_turns=6)
@@ -213,7 +213,7 @@ class TestConversationSimulator:
         )
         agent = MockLLM(name="agent", responses=["Hi"] * 5)
         simulator = ConversationSimulator(persona=persona, agent=agent)
-        simulator.termination_signals = {"goodbye", "ttyl", "farewell"}
+        simulator.termination_signal = "ttyl"
 
         # Act
         history = await simulator.start_conversation(max_turns=10)
@@ -249,7 +249,7 @@ class TestConversationSimulator:
         persona = MockLLM(name="persona", responses=["Hello", "Goodbye"])
         agent = MockLLM(name="agent", responses=["Hi"])
         simulator = ConversationSimulator(persona=persona, agent=agent)
-        simulator.termination_signals = ["Goodbye"]  # Must match exact case
+        simulator.termination_signal = "Goodbye"  # Must match exact case
 
         # Act
         history = await simulator.start_conversation(max_turns=10)
@@ -309,7 +309,7 @@ class TestConversationSimulator:
         persona = MockLLM(name="persona", responses=["Hello", "GOODBYE and thanks"])
         agent = MockLLM(name="agent", responses=["Hi"] * 5)
         simulator = ConversationSimulator(persona=persona, agent=agent)
-        simulator.termination_signals = ["GOODBYE"]  # Must match exact case
+        simulator.termination_signal = "GOODBYE"  # Must match exact case
 
         # Act
         history = await simulator.start_conversation(max_turns=10)
