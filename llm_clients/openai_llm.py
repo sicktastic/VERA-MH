@@ -7,6 +7,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 from utils.conversation_utils import build_langchain_messages
+from utils.debug import debug_print
 
 from .config import Config
 from .llm_interface import JudgeLLM
@@ -75,8 +76,26 @@ class OpenAILLM(JudgeLLM):
         if self.system_prompt:
             messages.append(SystemMessage(content=self.system_prompt))
 
+        # Debug: Print input parameters
+        debug_print(f"\n[DEBUG {self.name}] Input parameters:")
+        msg_preview = message[:50] + "..." if message and len(message) > 50 else message
+        debug_print(f"  - message: {msg_preview}")
+        hist_len = len(conversation_history) if conversation_history else 0
+        debug_print(f"  - conversation_history length: {hist_len}")
+
         # Build messages from history and current message
-        messages.extend(build_langchain_messages(conversation_history, message))
+        # Role reminder is automatically added for personas by build_langchain_messages
+        messages.extend(
+            build_langchain_messages(conversation_history, message, self.system_prompt)
+        )
+
+        # Debug: Print messages being sent to LLM
+        debug_print(f"[DEBUG {self.name}] Messages sent to LLM:")
+        for i, msg in enumerate(messages):
+            msg_type = type(msg).__name__
+            preview = msg.content[:100]
+            content_preview = preview + "..." if len(msg.content) > 100 else msg.content
+            debug_print(f"  {i+1}. {msg_type}: {content_preview}")
 
         try:
             start_time = time.time()

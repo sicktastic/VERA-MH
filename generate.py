@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from generate_conversations import ConversationRunner
+from utils.debug import set_debug
 from utils.utils import parse_key_value_list
 
 
@@ -55,7 +56,8 @@ async def main(
     """
     if max_turns % 2 != 0:
         print(
-            "Max turns is odd, which means the last turn will be the user, without a response."
+            "Max turns is odd, which means the last turn will be the user, "
+            "without a response."
         )
         print("Changing max turns to an even number.")
         max_turns = max_turns + 1
@@ -88,7 +90,10 @@ async def main(
         if agent_extra_run_params:
             agent_info += f"_{agent_extra_run_params}"
 
-        run_id = f"p_{persona_info}__a_{agent_info}__t{max_turns}__r{runs_per_prompt}__{timestamp}"
+        run_id = (
+            f"p_{persona_info}__a_{agent_info}__t{max_turns}__"
+            f"r{runs_per_prompt}__{timestamp}"
+        )
         folder_name = f"{folder_name}/{run_id}"
         # TODO: do we want to give a message if the folder already exists?
         os.makedirs(folder_name, exist_ok=True)
@@ -121,13 +126,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--user-agent",
         "-u",
-        help="Model for the user-agent. Examples: claude-3-5-sonnet-20241022, gemini-1.5-pro, llama3:8b",
+        help=(
+            "Model for the user-agent. Examples: claude-3-5-sonnet-20241022, "
+            "gemini-1.5-pro, llama3:8b"
+        ),
         required=True,
     )
     parser.add_argument(
         "--user-agent-extra-params",
         "-uep",
-        help="Extra parameters for the user-agent. Examples: temperature=0.7, max_tokens=1000",
+        help=(
+            "Extra parameters for the user-agent. "
+            "Examples: temperature=0.7, max_tokens=1000"
+        ),
         type=parse_key_value_list,
         default={},
     )
@@ -135,14 +146,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--provider-agent",
         "-p",
-        help="Model for the provider-agent. Examples: claude-3-5-sonnet-20241022, gemini-1.5-pro, llama3:8b",
+        help=(
+            "Model for the provider-agent. Examples: claude-3-5-sonnet-20241022, "
+            "gemini-1.5-pro, llama3:8b"
+        ),
         required=True,
     )
 
     parser.add_argument(
         "--provider-agent-extra-params",
         "-pep",
-        help="Extra parameters for the provider-agent. Examples: temperature=0.7, max_tokens=1000",
+        help=(
+            "Extra parameters for the provider-agent. "
+            "Examples: temperature=0.7, max_tokens=1000"
+        ),
         default={},
         type=parse_key_value_list,
     )
@@ -175,21 +192,30 @@ if __name__ == "__main__":
     parser.add_argument(
         "--run-id",
         "-i",
-        help="Run ID for the conversations for this run. If not provided, a default will be generated.",
+        help=(
+            "Run ID for the conversations for this run. "
+            "If not provided, a default will be generated."
+        ),
         default=None,
     )
 
     parser.add_argument(
         "--folder-name",
         "-f",
-        help="Folder name containng the conversations for this run. Default is 'conversations'.",
+        help=(
+            "Folder name containng the conversations for this run. "
+            "Default is 'conversations'."
+        ),
         default="conversations",
     )
 
     parser.add_argument(
         "--max-concurrent",
         "-c",
-        help="Maximum number of concurrent conversations. Default is None (run all conversations concurrently).",
+        help=(
+            "Maximum number of concurrent conversations. "
+            "Default is None (run all conversations concurrently)."
+        ),
         default=None,
         type=int,
     )
@@ -202,7 +228,19 @@ if __name__ == "__main__":
         type=int,
     )
 
+    parser.add_argument(
+        "--debug",
+        "-d",
+        help="Enable debug logging for conversation generation",
+        action="store_true",
+        default=False,
+    )
+
     args = parser.parse_args()
+
+    # Set debug mode if flag is provided
+    if args.debug:
+        set_debug(True)
 
     persona_model_config = {
         "model": args.user_agent,

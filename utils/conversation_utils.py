@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
+from .debug import debug_print
+
 
 def generate_conversation_filename(prefix: str = "conversation") -> str:
     """
@@ -81,9 +83,30 @@ def format_conversation_summary(
     return summary
 
 
+def build_persona_role_reminder() -> str:
+    """
+    Build a role reminder message for personas to prevent role confusion.
+
+    This reminder is injected before conversation history to reinforce that
+    the persona should maintain their character as a user in distress, not
+    adopt the chatbot's supportive counselor role.
+
+    Returns:
+        The role reminder text to inject as a HumanMessage
+    """
+    return (
+        "REMINDER: You are the USER seeking help from the chatbot. "
+        "The conversation below shows YOUR messages (what you said) and "
+        "the CHATBOT's responses (what it said). Continue responding AS "
+        "YOURSELF - the user in distress. Do NOT provide advice, support, "
+        "or counseling. Do NOT copy the chatbot's supportive language."
+    )
+
+
 def build_langchain_messages(
     conversation_history: Optional[List[Dict[str, Any]]] = None,
     current_message: Optional[str] = None,
+    system_prompt: Optional[str] = None,
 ) -> List[BaseMessage]:
     """
     Build a list of LangChain messages from conversation history.
@@ -101,14 +124,25 @@ def build_langchain_messages(
         current_message: Optional current message to add at the end.
             NOTE: If current_message matches the last message in history, it will
             NOT be added again to avoid duplication.
+        system_prompt: Optional system prompt to check if this is a persona.
+            If provided and contains "roleplaying as a human user", a role
+            reminder will be automatically injected before conversation history.
 
     Returns:
         List of LangChain message objects (HumanMessage, AIMessage)
     """
     messages = []
 
+    # Auto-detect persona and add role reminder if needed
+    is_persona = system_prompt and "roleplaying as a human user" in system_prompt
+    if is_persona and conversation_history:
+        debug_print("[DEBUG] Adding role reminder message for persona")
+        messages.append(HumanMessage(content=build_persona_role_reminder()))
+
     # Add conversation history if provided
     if conversation_history:
+        hist_len = len(conversation_history)
+        debug_print(f"[DEBUG] Processing {hist_len} turns from history:")
         for turn in conversation_history:
             turn_number = turn.get("turn")
             text = turn.get("response")
@@ -117,6 +151,9 @@ def build_langchain_messages(
                 continue
             # Odd turns (1, 3, 5...) are from persona (HumanMessage)
             # Even turns (2, 4, 6...) are from agent (AIMessage)
+            msg_type = "HumanMessage" if turn_number % 2 == 1 else "AIMessage"
+            preview = text[:50] + "..." if len(text) > 50 else text
+            debug_print(f"  Turn {turn_number} -> {msg_type}: {preview}")
             if turn_number % 2 == 1:
                 messages.append(HumanMessage(content=text))
             else:
@@ -127,7 +164,16 @@ def build_langchain_messages(
     if current_message:
         # Check if we already added this message from history
         if not messages or messages[-1].content != current_message:
+            debug_print(
+                "[DEBUG build_langchain_messages] Adding current_message as "
+                "HumanMessage (not duplicate)"
+            )
             messages.append(HumanMessage(content=current_message))
+        else:
+            debug_print(
+                "[DEBUG build_langchain_messages] Skipping current_message "
+                "(duplicate of last message)"
+            )
 
     return messages
 
