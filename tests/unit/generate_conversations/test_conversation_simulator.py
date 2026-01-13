@@ -323,13 +323,13 @@ class TestConversationSimulator:
 
     async def test_max_total_words_stopping_condition(self):
         """Test that conversation stops when max_total_words is reached."""
-        # Arrange - Use agent named "chatbot" to trigger the max_total_words check
+        # Arrange - Use agent named "agent" to trigger the max_total_words check
         persona = MockLLM(
             name="User",
             responses=["Hello there", "How are you", "Great thanks", "Goodbye"],
         )
         agent = MockLLM(
-            name="chatbot",
+            name="agent",
             responses=[
                 "I am doing well today",  # 5 words
                 "Very good indeed",  # 3 words
@@ -344,37 +344,37 @@ class TestConversationSimulator:
 
         # Assert
         # Turn 1: User says "Hello there" (2 words, total: 2)
-        # Turn 2: chatbot says "I am doing well today" (5 words, total: 7)
+        # Turn 2: agent says "I am doing well today" (5 words, total: 7)
         # Turn 3: User says "How are you" (3 words, total: 10)
-        # Turn 4: chatbot says "Very good indeed" (3 words, total: 13)
-        # Should stop after turn 4 since chatbot exceeded max_total_words
+        # Turn 4: agent says "Very good indeed" (3 words, total: 13)
+        # Should stop after turn 4 since agent exceeded max_total_words
         assert len(history) == 4
-        assert history[-1]["speaker"] == "chatbot"
+        assert history[-1]["speaker"] == "agent"
 
         # Verify total word count is close to but over the limit
         total_words = sum(len(turn["response"].split()) for turn in history)
         assert total_words >= 10  # Should exceed the limit
 
     async def test_max_total_words_only_stops_after_chatbot_turn(self):
-        """Test that max_total_words only checks after chatbot (agent) speaks."""
+        """Test that max_total_words only checks after agent (agent) speaks."""
         # Arrange
         persona = MockLLM(
             name="User",
             responses=["This is a very long message with many words here"] * 5,
         )
         agent = MockLLM(
-            name="chatbot",
+            name="agent",
             responses=["OK"] * 5,
         )
         simulator = ConversationSimulator(persona=persona, agent=agent)
 
-        # Act - Even though User exceeds limit, should only stop after chatbot
+        # Act - Even though User exceeds limit, should only stop after agent
         history = await simulator.start_conversation(max_turns=10, max_total_words=5)
 
         # Assert - Should complete at least 2 turns (User then chatbot)
         assert len(history) >= 2
-        # Last turn should be from chatbot since that's when the check happens
-        assert history[-1]["speaker"] == "chatbot"
+        # Last turn should be from agent since that's when the check happens
+        assert history[-1]["speaker"] == "agent"
 
     async def test_max_total_words_none_runs_to_max_turns(self):
         """Test that when max_total_words is None, conversation runs to max_turns."""
@@ -384,7 +384,7 @@ class TestConversationSimulator:
             responses=["Long message with many words"] * 10,
         )
         agent = MockLLM(
-            name="chatbot",
+            name="agent",
             responses=["Even longer response with many many words"] * 10,
         )
         simulator = ConversationSimulator(persona=persona, agent=agent)
