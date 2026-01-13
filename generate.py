@@ -23,6 +23,7 @@ async def main(
     run_id: Optional[str] = None,
     max_concurrent: Optional[int] = None,
     max_total_words: Optional[int] = None,
+    max_personas: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
     Generate conversations and return results.
@@ -37,9 +38,13 @@ async def main(
         runs_per_prompt: Number of runs per prompt
         persona_names: List of persona names to use. If None, uses all personas.
         verbose: Whether to print status messages
-        folder_name: Custom folder name for saving conversations. If None, uses default format.
+        folder_name: Custom folder name for saving conversations. If None, uses
+            default format.
         max_total_words: Optional maximum total words across all responses
-        max_concurrent: Maximum number of concurrent conversations. If None, runs all conversations concurrently.
+        max_concurrent: Maximum number of concurrent conversations. If None, runs all
+            conversations concurrently.
+        max_personas: Optional maximum number of personas to load from CSV. If None,
+            loads all personas.
 
     Returns:
         List of conversation results
@@ -67,6 +72,7 @@ async def main(
         print(f"  - Run ID: {run_id}")
         print(f"  - Max concurrent: {max_concurrent}")
         print(f"  - Max total words: {max_total_words}")
+        print(f"  - Max personas: {max_personas}")
 
     # Generate default folder name if not provided
     if folder_name is None:
@@ -97,6 +103,7 @@ async def main(
         run_id=run_id,
         max_concurrent=max_concurrent,
         max_total_words=max_total_words,
+        max_personas=max_personas,
     )
 
     # Run conversations
@@ -187,6 +194,14 @@ if __name__ == "__main__":
         type=int,
     )
 
+    parser.add_argument(
+        "--max-personas",
+        "-mp",
+        help="Maximum number of personas to use. Limits personas loaded from CSV.",
+        default=None,
+        type=int,
+    )
+
     args = parser.parse_args()
 
     persona_model_config = {
@@ -222,5 +237,6 @@ if __name__ == "__main__":
             folder_name=args.folder_name,
             max_concurrent=args.max_concurrent,
             max_total_words=args.max_total_words,
+            max_personas=args.max_personas,
         )
     )
