@@ -249,7 +249,7 @@ class TestConversationSimulator:
         persona = MockLLM(name="persona", responses=["Hello", "Goodbye"])
         agent = MockLLM(name="agent", responses=["Hi"])
         simulator = ConversationSimulator(persona=persona, agent=agent)
-        simulator.termination_signals = {"goodbye"}
+        simulator.termination_signals = ["Goodbye"]  # Must match exact case
 
         # Act
         history = await simulator.start_conversation(max_turns=10)
@@ -304,12 +304,12 @@ class TestConversationSimulator:
         assert internal_history_dicts != history1
 
     async def test_case_insensitive_termination_detection(self):
-        """Test that termination signals are detected case-insensitively."""
+        """Test that termination signals are detected (exact match required)."""
         # Arrange
         persona = MockLLM(name="persona", responses=["Hello", "GOODBYE and thanks"])
         agent = MockLLM(name="agent", responses=["Hi"] * 5)
         simulator = ConversationSimulator(persona=persona, agent=agent)
-        simulator.termination_signals = {"goodbye"}
+        simulator.termination_signals = ["GOODBYE"]  # Must match exact case
 
         # Act
         history = await simulator.start_conversation(max_turns=10)

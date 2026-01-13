@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage
 
@@ -16,7 +16,8 @@ class ConversationSimulator:
         self.conversation_history: List[ConversationTurn] = []
 
         # Define termination signals that indicate persona wants to end the conversation
-        self.termination_signals: Set[str] = set()
+        # Can be either a list or set for backward compatibility
+        self.termination_signals = ["<END OF CONVERSATION>"]
 
         # "goodbye", "bye", "farewell", "talk to you later",
         # "ttyl",
@@ -39,25 +40,25 @@ class ConversationSimulator:
         if speaker != self.persona:
             return False
 
-        response_lower = response.lower()
+        # response_lower = response.lower()
 
         # Check for exact phrase matches
         for signal in self.termination_signals:
-            if signal in response_lower:
+            if signal in response:
                 return True
 
         # Check for common ending patterns
-        ending_patterns = [
-            # "it was nice",
-            # "pleasure talking",
-            # "great conversation",
-            # "good chat",
-            # "until next time"
-        ]
+        # ending_patterns = [
+        #     # "it was nice",
+        #     # "pleasure talking",
+        #     # "great conversation",
+        #     # "good chat",
+        #     # "until next time"
+        # ]
 
-        for pattern in ending_patterns:
-            if pattern in response_lower:
-                return True
+        # for pattern in ending_patterns:
+        #     if pattern in response_lower:
+        #         return True
 
         return False
 
