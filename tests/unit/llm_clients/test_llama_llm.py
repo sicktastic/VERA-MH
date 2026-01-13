@@ -300,3 +300,89 @@ class TestLlamaLLMSystemPrompt:
         await llm.generate_response("Question 2")
         call2 = mock_instance.invoke.call_args[0][0]
         assert "System: You are helpful" in call2
+
+
+@pytest.mark.unit
+class TestLlamaLLMConversationHistory:
+    """Test LlamaLLM conversation history support."""
+
+    @pytest.mark.asyncio
+    @patch("llm_clients.llama_llm.Ollama")
+    async def test_generate_response_with_conversation_history(self, mock_ollama):
+        """Test generate_response with conversation_history parameter."""
+        from llm_clients.llama_llm import LlamaLLM
+
+        mock_instance = MagicMock()
+        mock_instance.invoke.return_value = "Response with history"
+        mock_ollama.return_value = mock_instance
+
+        llm = LlamaLLM(name="test-llama", system_prompt="You are helpful")
+
+        history = [
+            {
+                "turn": 1,
+                "speaker": "persona",
+                "input": "Start",
+                "response": "Hello",
+            },
+            {
+                "turn": 2,
+                "speaker": "agent",
+                "input": "Hello",
+                "response": "Hi there",
+            },
+        ]
+
+        response = await llm.generate_response(
+            "How are you?", conversation_history=history
+        )
+
+        assert response == "Response with history"
+
+        # Verify invoke was called with formatted history
+        call_args = mock_instance.invoke.call_args[0][0]
+        assert "System: You are helpful" in call_args
+        assert "Human: Hello" in call_args
+        assert "Assistant: Hi there" in call_args
+        assert "Human: How are you?" in call_args
+        assert "Assistant:" in call_args
+
+    @pytest.mark.asyncio
+    @patch("llm_clients.llama_llm.Ollama")
+    async def test_generate_response_with_empty_conversation_history(self, mock_ollama):
+        """Test generate_response with empty conversation_history list."""
+        from llm_clients.llama_llm import LlamaLLM
+
+        mock_instance = MagicMock()
+        mock_instance.invoke.return_value = "Response"
+        mock_ollama.return_value = mock_instance
+
+        llm = LlamaLLM(name="test-llama")
+
+        response = await llm.generate_response("Hello", conversation_history=[])
+
+        assert response == "Response"
+
+        # Should just have current message
+        call_args = mock_instance.invoke.call_args[0][0]
+        assert call_args == "Human: Hello\n\nAssistant:"
+
+    @pytest.mark.asyncio
+    @patch("llm_clients.llama_llm.Ollama")
+    async def test_generate_response_with_none_conversation_history(self, mock_ollama):
+        """Test generate_response with None conversation_history."""
+        from llm_clients.llama_llm import LlamaLLM
+
+        mock_instance = MagicMock()
+        mock_instance.invoke.return_value = "Response"
+        mock_ollama.return_value = mock_instance
+
+        llm = LlamaLLM(name="test-llama")
+
+        response = await llm.generate_response("Test", conversation_history=None)
+
+        assert response == "Response"
+
+        # Should just have current message
+        call_args = mock_instance.invoke.call_args[0][0]
+        assert call_args == "Human: Test\n\nAssistant:"

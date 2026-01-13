@@ -1,6 +1,6 @@
 """Represents a single turn in a conversation with LangChain message and metadata."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -29,7 +29,7 @@ class ConversationTurn:
     input_message: str
     message: BaseMessage
     early_termination: bool = False
-    logging_metadata: Optional[Dict[str, Any]] = field(default_factory=dict)
+    logging_metadata: Optional[Dict[str, Any]] = None
 
     @property
     def response(self) -> str:

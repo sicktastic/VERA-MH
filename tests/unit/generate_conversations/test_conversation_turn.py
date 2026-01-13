@@ -55,7 +55,7 @@ class TestConversationTurnCreation:
         )
 
         assert turn.early_termination is False
-        assert turn.logging_metadata == {}
+        assert turn.logging_metadata is None
 
     def test_response_property(self):
         """Test that response property returns message content."""

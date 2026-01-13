@@ -110,8 +110,8 @@ def build_langchain_messages(
         for turn in conversation_history:
             turn_number = turn.get("turn")
             text = turn.get("response")
-            # Skip turns without turn number
-            if turn_number is None:
+            # Skip turns without turn number or response
+            if turn_number is None or text is None:
                 continue
             # Odd turns (1, 3, 5...) are from persona (HumanMessage)
             # Even turns (2, 4, 6...) are from agent (AIMessage)
@@ -125,3 +125,45 @@ def build_langchain_messages(
         messages.append(HumanMessage(content=current_message))
 
     return messages
+
+
+def format_conversation_as_string(
+    conversation_history: Optional[List[Dict[str, Any]]] = None,
+    current_message: Optional[str] = None,
+    system_prompt: Optional[str] = None,
+) -> str:
+    """
+    Format conversation history as a string for string-based LLMs (e.g., Ollama).
+
+    This function reuses build_langchain_messages() and converts the result to
+    a string format with Human/Assistant labels.
+
+    Args:
+        conversation_history: Optional list of previous conversation turns
+        current_message: Optional current message to add at the end
+        system_prompt: Optional system prompt to prepend
+
+    Returns:
+        Formatted string with System, Human, and Assistant labels
+    """
+    full_message = ""
+
+    # Add system prompt if provided
+    if system_prompt:
+        full_message = f"System: {system_prompt}\n\n"
+
+    # Build LangChain messages using existing utility
+    messages = build_langchain_messages(conversation_history, current_message)
+
+    # Convert messages to string format
+    for message in messages:
+        if isinstance(message, HumanMessage):
+            full_message += f"Human: {message.content}\n\n"
+        elif isinstance(message, AIMessage):
+            full_message += f"Assistant: {message.content}\n\n"
+
+    # Add "Assistant:" prompt at the end if there's a current message
+    if current_message and full_message.endswith("\n\n"):
+        full_message += "Assistant:"
+
+    return full_message

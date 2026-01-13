@@ -2,7 +2,10 @@
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from utils.conversation_utils import build_langchain_messages
+from utils.conversation_utils import (
+    build_langchain_messages,
+    format_conversation_as_string,
+)
 
 
 class TestBuildLangchainMessages:
@@ -164,3 +167,119 @@ class TestBuildLangchainMessages:
 
         assert messages[0].content == multiline_text
         assert messages[1].content == unicode_text
+
+    def test_build_messages_skips_none_response(self):
+        """Test that turns with None response are skipped."""
+        history = [
+            {"turn": 1, "speaker": "persona", "response": "Hello"},
+            {"turn": 2, "speaker": "agent", "response": None},  # Should be skipped
+            {"turn": 3, "speaker": "persona", "response": "Are you there?"},
+        ]
+
+        messages = build_langchain_messages(conversation_history=history)
+
+        # Should only have 2 messages (turn 2 skipped)
+        assert len(messages) == 2
+        assert isinstance(messages[0], HumanMessage)
+        assert messages[0].content == "Hello"
+        assert isinstance(messages[1], HumanMessage)
+        assert messages[1].content == "Are you there?"
+
+
+class TestFormatConversationAsString:
+    """Test format_conversation_as_string function."""
+
+    def test_format_with_no_history(self):
+        """Test with only current message, no history."""
+        result = format_conversation_as_string(
+            conversation_history=None, current_message="Hello"
+        )
+
+        assert result == "Human: Hello\n\nAssistant:"
+
+    def test_format_with_system_prompt(self):
+        """Test with system prompt."""
+        result = format_conversation_as_string(
+            conversation_history=None,
+            current_message="Hello",
+            system_prompt="You are helpful",
+        )
+
+        assert result == "System: You are helpful\n\nHuman: Hello\n\nAssistant:"
+
+    def test_format_with_conversation_history(self):
+        """Test with conversation history."""
+        history = [
+            {"turn": 1, "speaker": "persona", "response": "Hi"},
+            {"turn": 2, "speaker": "agent", "response": "Hello"},
+            {"turn": 3, "speaker": "persona", "response": "How are you?"},
+        ]
+
+        result = format_conversation_as_string(
+            conversation_history=history, current_message="What's your name?"
+        )
+
+        expected = (
+            "Human: Hi\n\n"
+            "Assistant: Hello\n\n"
+            "Human: How are you?\n\n"
+            "Human: What's your name?\n\n"
+            "Assistant:"
+        )
+        assert result == expected
+
+    def test_format_with_system_prompt_and_history(self):
+        """Test with both system prompt and history."""
+        history = [
+            {"turn": 1, "speaker": "custom_persona", "response": "Hello"},
+            {"turn": 2, "speaker": "custom_agent", "response": "Hi there"},
+        ]
+
+        result = format_conversation_as_string(
+            conversation_history=history,
+            current_message="Tell me more",
+            system_prompt="Be concise",
+        )
+
+        expected = (
+            "System: Be concise\n\n"
+            "Human: Hello\n\n"
+            "Assistant: Hi there\n\n"
+            "Human: Tell me more\n\n"
+            "Assistant:"
+        )
+        assert result == expected
+
+    def test_format_without_current_message(self):
+        """Test with history but no current message."""
+        history = [
+            {"turn": 1, "speaker": "persona", "response": "Hello"},
+            {"turn": 2, "speaker": "agent", "response": "Hi"},
+        ]
+
+        result = format_conversation_as_string(conversation_history=history)
+
+        expected = "Human: Hello\n\nAssistant: Hi\n\n"
+        assert result == expected
+
+    def test_format_skips_none_response(self):
+        """Test that turns with None response are skipped."""
+        history = [
+            {"turn": 1, "speaker": "persona", "response": "Hello"},
+            {"turn": 2, "speaker": "agent", "response": None},
+            {"turn": 3, "speaker": "persona", "response": "Still there?"},
+        ]
+
+        result = format_conversation_as_string(conversation_history=history)
+
+        # Turn 2 should be skipped
+        expected = "Human: Hello\n\nHuman: Still there?\n\n"
+        assert result == expected
+
+    def test_format_empty_inputs(self):
+        """Test with all empty inputs."""
+        result = format_conversation_as_string(
+            conversation_history=None, current_message=None, system_prompt=None
+        )
+
+        assert result == ""

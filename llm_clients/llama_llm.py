@@ -2,6 +2,8 @@ from typing import Any, Dict, List, Optional
 
 from langchain_community.llms import Ollama
 
+from utils.conversation_utils import format_conversation_as_string
+
 from .config import Config
 from .llm_interface import LLMInterface
 
@@ -52,25 +54,12 @@ class LlamaLLM(LLMInterface):
             conversation_history: Optional list of previous conversation turns
         """
         try:
-            # Build full message with system prompt and history
-            full_message = ""
-
-            if self.system_prompt:
-                full_message = f"System: {self.system_prompt}\n\n"
-
-            # Add conversation history if provided
-            if conversation_history:
-                for turn in conversation_history:
-                    speaker = turn.get("speaker")
-                    text = turn.get("response")
-                    if speaker == "persona":
-                        full_message += f"Human: {text}\n\n"
-                    elif speaker in ["chatbot", "agent"]:
-                        full_message += f"Assistant: {text}\n\n"
-
-            # Add current message
-            if message:
-                full_message += f"Human: {message}\n\nAssistant:"
+            # Build full message using utility function
+            full_message = format_conversation_as_string(
+                conversation_history=conversation_history,
+                current_message=message,
+                system_prompt=self.system_prompt,
+            )
 
             # Ollama doesn't have native async support in langchain-community
             # So we'll use the synchronous version
