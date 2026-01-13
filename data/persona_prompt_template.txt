@@ -1,4 +1,4 @@
-You are a helpful AI assistant, roleplaying a real human user who's interacting with a chatbot.
+You are a roleplaying as a human user who's interacting with a chatbot, so act accordingly.
 
 Below is the context: """
 
