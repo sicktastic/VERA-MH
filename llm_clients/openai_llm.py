@@ -62,13 +62,11 @@ class OpenAILLM(JudgeLLM):
 
     async def generate_response(
         self,
-        message: Optional[str] = None,
         conversation_history: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
-        """Generate a response to the given message asynchronously.
+        """Generate a response based on conversation history.
 
         Args:
-            message: The current message to respond to
             conversation_history: Optional list of previous conversation turns
         """
         messages = []
@@ -78,15 +76,13 @@ class OpenAILLM(JudgeLLM):
 
         # Debug: Print input parameters
         debug_print(f"\n[DEBUG {self.name}] Input parameters:")
-        msg_preview = message[:50] + "..." if message and len(message) > 50 else message
-        debug_print(f"  - message: {msg_preview}")
         hist_len = len(conversation_history) if conversation_history else 0
         debug_print(f"  - conversation_history length: {hist_len}")
 
-        # Build messages from history and current message
+        # Build messages from history
         # Role reminder is automatically added for personas by build_langchain_messages
         messages.extend(
-            build_langchain_messages(conversation_history, message, self.system_prompt)
+            build_langchain_messages(conversation_history, self.system_prompt)
         )
 
         # Debug: Print messages being sent to LLM

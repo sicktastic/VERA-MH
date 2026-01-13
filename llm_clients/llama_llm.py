@@ -44,20 +44,17 @@ class LlamaLLM(LLMInterface):
 
     async def generate_response(
         self,
-        message: Optional[str] = None,
         conversation_history: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
-        """Generate a response to the given message asynchronously.
+        """Generate a response based on conversation history.
 
         Args:
-            message: The current message to respond to
             conversation_history: Optional list of previous conversation turns
         """
         try:
             # Build full message using utility function
             full_message = format_conversation_as_string(
                 conversation_history=conversation_history,
-                current_message=message,
                 system_prompt=self.system_prompt,
             )
 

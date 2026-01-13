@@ -82,10 +82,10 @@ class ConversationSimulator:
             List of conversation turns with speaker and message
         """
         self.conversation_history = []
+
+        # Set up initial message for the conversation
         if initial_message is None:
-            current_message = "Start the conversation based on the system prompt"
-        else:
-            current_message = initial_message
+            initial_message = "Start the conversation based on the system prompt"
 
         # IMPORTANT: Persona always starts first (turn 1, 3, 5...)
         # This determines the odd/even pattern in build_langchain_messages()
@@ -98,17 +98,21 @@ class ConversationSimulator:
             # Record start time for this turn
 
             # Generate response with conversation history
-            # Convert to dict format for LLM interface
-            history_dicts = [t.to_dict() for t in self.conversation_history]
-
-            # Only pass current_message on the first turn (when history is empty)
-            # After that, all context is in conversation_history
-            # Passing current_message after turn 1 causes role confusion because
-            # the previous speaker's response appears with the wrong message type
-            message_param = current_message if not history_dicts else None
+            # On turn 0, create a "turn 0" entry for the initial message
+            # This provides context without being a real conversation turn
+            if turn == 0:
+                initial_turn = {
+                    "turn": 0,
+                    "speaker": "system",
+                    "response": initial_message,
+                }
+                history_dicts = [initial_turn]
+            else:
+                # Convert conversation history to dict format for LLM interface
+                history_dicts = [t.to_dict() for t in self.conversation_history]
 
             response = await current_speaker.generate_response(
-                message=message_param, conversation_history=history_dicts
+                conversation_history=history_dicts
             )
 
             total_words += len(response.split())
@@ -119,11 +123,24 @@ class ConversationSimulator:
             else:
                 lc_message = AIMessage(content=response)
 
+            # Determine input message for metadata tracking
+            # On turn 0, it's the initial message
+            # On subsequent turns, it's the previous speaker's response
+            if turn == 0:
+                input_msg = initial_message
+            else:
+                # Get the last turn's response as input for this turn
+                input_msg = (
+                    self.conversation_history[-1].response
+                    if self.conversation_history
+                    else ""
+                )
+
             # Record this turn using ConversationTurn
             turn_obj = ConversationTurn(
                 turn=turn + 1,
                 speaker=current_speaker.get_name(),
-                input_message=current_message or "",
+                input_message=input_msg,
                 message=lc_message,
                 early_termination=False,
                 logging_metadata=current_speaker.get_last_response_metadata(),
@@ -144,8 +161,7 @@ class ConversationSimulator:
             ):
                 break
 
-            # Switch speakers and use the response as the next input
-            current_message = response
+            # Switch speakers for next turn
             current_speaker, next_speaker = next_speaker, current_speaker
 
         # Return dict format for backward compatibility

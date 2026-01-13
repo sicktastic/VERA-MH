@@ -70,13 +70,11 @@ class ClaudeLLM(JudgeLLM):
 
     async def generate_response(
         self,
-        message: Optional[str] = None,
         conversation_history: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
-        """Generate a response to the given message asynchronously.
+        """Generate a response based on conversation history.
 
         Args:
-            message: The current message to respond to
             conversation_history: Optional list of previous conversation turns
         """
         messages = []
@@ -84,10 +82,10 @@ class ClaudeLLM(JudgeLLM):
         if self.system_prompt:
             messages.append(SystemMessage(content=self.system_prompt))
 
-        # Build messages from history and current message
+        # Build messages from history
         # Role reminder is automatically added for personas by build_langchain_messages
         messages.extend(
-            build_langchain_messages(conversation_history, message, self.system_prompt)
+            build_langchain_messages(conversation_history, self.system_prompt)
         )
 
         # Debug: Print messages being sent to LLM
