@@ -100,8 +100,15 @@ class ConversationSimulator:
             # Generate response with conversation history
             # Convert to dict format for LLM interface
             history_dicts = [t.to_dict() for t in self.conversation_history]
+
+            # Only pass current_message on the first turn (when history is empty)
+            # After that, all context is in conversation_history
+            # Passing current_message after turn 1 causes role confusion because
+            # the previous speaker's response appears with the wrong message type
+            message_param = current_message if not history_dicts else None
+
             response = await current_speaker.generate_response(
-                message=current_message, conversation_history=history_dicts
+                message=message_param, conversation_history=history_dicts
             )
 
             total_words += len(response.split())
