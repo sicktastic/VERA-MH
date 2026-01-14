@@ -16,17 +16,7 @@ class ConversationSimulator:
         self.conversation_history: List[ConversationTurn] = []
 
         # Define termination signals that indicate persona wants to end the conversation
-        self.termination_signals = ["<END OF CONVERSATION>"]
-
-        # "goodbye", "bye", "farewell", "talk to you later",
-        # "ttyl",
-        # "end conversation", "conversation over", "that's all",
-        # "nothing more to discuss",
-        # "i'm done", "let's end here",
-        # "conversation complete", "wrapping up", "final thoughts",
-        # "concluding", "to conclude",
-        # "in conclusion"
-        # }
+        self.termination_signal = "<END OF CONVERSATION>"
 
     def _should_terminate_conversation(
         self, response: str, speaker: LLMInterface
@@ -40,22 +30,8 @@ class ConversationSimulator:
             return False
 
         # Check for exact phrase matches
-        for signal in self.termination_signals:
-            if signal in response:
-                return True
-
-        # Check for common ending patterns
-        # ending_patterns = [
-        #     # "it was nice",
-        #     # "pleasure talking",
-        #     # "great conversation",
-        #     # "good chat",
-        #     # "until next time"
-        # ]
-
-        # for pattern in ending_patterns:
-        #     if pattern in response_lower:
-        #         return True
+        if self.termination_signal in response:
+            return True
 
         return False
 
