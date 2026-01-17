@@ -139,7 +139,8 @@ class LLMJudge:
                 f"Model '{self.judge_model}' does not support structured "
                 f"output generation. Judge operations require models with "
                 f"structured output support. Supported models: "
-                f"Claude (claude-*), OpenAI (gpt-*), Gemini (gemini-*). "
+                f"Claude (claude-*), OpenAI (gpt-*), "
+                "Gemini (gemini-*), Azure (azure-*). "
                 f"Not supported: Llama/Ollama models."
             )
 
@@ -212,6 +213,14 @@ class LLMJudge:
             self._save_results(
                 conversation, output_folder, results, verbose, judge_instance
             )
+
+        # Cleanup LLM resources (e.g., close HTTP sessions for Azure)
+        if hasattr(self, "evaluator") and hasattr(self.evaluator, "close"):
+            try:
+                await self.evaluator.close()
+            except Exception as e:
+                # Log but don't fail if cleanup fails
+                self.logger.warning(f"Failed to cleanup evaluator LLM: {e}")
 
         return results
 

@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from llm_clients.azure_llm import AzureLLM
 from llm_clients.claude_llm import ClaudeLLM
 from llm_clients.gemini_llm import GeminiLLM
 from llm_clients.llama_llm import LlamaLLM
@@ -95,6 +96,34 @@ class TestLLMFactory:
         assert llm.name == name
         assert llm.system_prompt == system_prompt
         assert llm.model_name == model_name
+
+    @patch("llm_clients.azure_llm.Config.AZURE_API_KEY", "test-key")
+    @patch(
+        "llm_clients.azure_llm.Config.AZURE_ENDPOINT", "https://test.openai.azure.com"
+    )
+    @patch("llm_clients.azure_llm.Config.get_azure_config")
+    @patch("llm_clients.azure_llm.AzureAIChatCompletionsModel")
+    def test_create_azure_llm(self, mock_azure_model, mock_get_config):
+        """Test that factory correctly creates Azure LLM instance."""
+        # Arrange
+        model_name = "azure-grok-4"
+        name = "TestAzure"
+        system_prompt = "You are an Azure assistant."
+        mock_get_config.return_value = {"model": "gpt-4"}
+        mock_llm = MagicMock()
+        mock_llm.model_name = "grok-4"
+        mock_azure_model.return_value = mock_llm
+
+        # Act
+        llm = LLMFactory.create_llm(
+            model_name=model_name, name=name, system_prompt=system_prompt
+        )
+
+        # Assert
+        assert isinstance(llm, AzureLLM)
+        assert llm.name == name
+        assert llm.system_prompt == system_prompt
+        assert llm.model_name == "grok-4"  # azure- prefix should be removed
 
     def test_unsupported_model_raises_error(self):
         """Test that factory raises ValueError for unsupported model names."""
@@ -217,6 +246,31 @@ class TestLLMFactory:
         assert isinstance(llm, LlamaLLM)
         assert llm.model_name == model_name
 
+    @patch("llm_clients.azure_llm.Config.AZURE_API_KEY", "test-key")
+    @patch(
+        "llm_clients.azure_llm.Config.AZURE_ENDPOINT", "https://test.openai.azure.com"
+    )
+    @patch("llm_clients.azure_llm.Config.get_azure_config")
+    @patch("llm_clients.azure_llm.AzureAIChatCompletionsModel")
+    def test_create_azure_llm_with_azure_prefix(
+        self, mock_azure_model, mock_get_config
+    ):
+        """Test that factory correctly identifies Azure models with 'azure' prefix."""
+        # Arrange
+        model_name = "azure-gpt-4"
+        name = "TestAzurePrefix"
+        mock_get_config.return_value = {"model": "azure-gpt-4"}
+        mock_llm = MagicMock()
+        mock_llm.model_name = "gpt-4"
+        mock_azure_model.return_value = mock_llm
+
+        # Act
+        llm = LLMFactory.create_llm(model_name=model_name, name=name)
+
+        # Assert
+        assert isinstance(llm, AzureLLM)
+        assert llm.model_name == "gpt-4"  # azure- prefix should be removed
+
     @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
     @patch("llm_clients.claude_llm.ChatAnthropic")
     @patch("llm_clients.openai_llm.Config.OPENAI_API_KEY", "test-key")
@@ -224,8 +278,16 @@ class TestLLMFactory:
     @patch("llm_clients.gemini_llm.Config.GOOGLE_API_KEY", "test-key")
     @patch("llm_clients.gemini_llm.ChatGoogleGenerativeAI")
     @patch("llm_clients.llama_llm.Ollama")
+    @patch("llm_clients.azure_llm.Config.AZURE_API_KEY", "test-key")
+    @patch(
+        "llm_clients.azure_llm.Config.AZURE_ENDPOINT", "https://test.openai.azure.com"
+    )
+    @patch("llm_clients.azure_llm.Config.get_azure_config")
+    @patch("llm_clients.azure_llm.AzureAIChatCompletionsModel")
     def test_factory_case_insensitive_model_detection(
         self,
+        mock_azure_model,
+        mock_get_config,
         mock_ollama,
         mock_chat_gemini,
         mock_chat_openai,
@@ -237,15 +299,21 @@ class TestLLMFactory:
         mock_chat_openai.return_value = MagicMock()
         mock_chat_gemini.return_value = MagicMock()
         mock_ollama.return_value = MagicMock()
+        mock_get_config.return_value = {"model": "gpt-4"}
+        mock_llm = MagicMock()
+        mock_llm.model_name = "gpt-4"
+        mock_azure_model.return_value = mock_llm
 
         # Act
         claude_llm = LLMFactory.create_llm(model_name="CLAUDE-3-5", name="Claude")
         gpt_llm = LLMFactory.create_llm(model_name="GPT-4-TURBO", name="GPT")
         gemini_llm = LLMFactory.create_llm(model_name="GEMINI-PRO", name="Gemini")
         llama_llm = LLMFactory.create_llm(model_name="LLAMA-3", name="Llama")
+        azure_llm = LLMFactory.create_llm(model_name="AZURE-GPT-4", name="Azure")
 
         # Assert
         assert isinstance(claude_llm, ClaudeLLM)
         assert isinstance(gpt_llm, OpenAILLM)
         assert isinstance(gemini_llm, GeminiLLM)
         assert isinstance(llama_llm, LlamaLLM)
+        assert isinstance(azure_llm, AzureLLM)

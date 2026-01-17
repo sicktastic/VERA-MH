@@ -70,7 +70,7 @@ class JudgeLLM(LLMInterface):
     as judges, where structured output (using Pydantic models) is necessary
     for reliable evaluation results.
 
-    Implementations: Claude, OpenAI, Gemini
+    Implementations: Claude, OpenAI, Gemini, Azure
     Not supported by: Llama (via Ollama)
     """
 
