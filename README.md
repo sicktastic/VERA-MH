@@ -17,6 +17,7 @@ There are many quirks of the current structure, which will be simplified and str
 - [LLM Conversation Simulator](#llm-conversation-simulator)
 - [Development with Agents](#development-with-agents)
 - [Using Claude Code](#using-claude-code)
+- [Testing](#testing)
 - [License](#license)
 
 ## Additional Resources
@@ -446,6 +447,45 @@ See [CLAUDE.md](./CLAUDE.md) and [.claude/](./.claude/) for all options.
 Team-shared configuration is in [`.claude/settings.json`](./.claude/settings.json), which defines allowed operations without approval. Personal settings can be added to `.claude/settings.local.json` (not committed to git).
 
 For more details on custom commands and creating your own, see [`.claude/commands/README.md`](.claude/commands/README.md).
+
+## Testing
+
+VERA-MH uses [pytest](https://docs.pytest.org/) for testing. The project includes unit, integration, and end-to-end tests.
+
+### Test Structure
+
+Tests are organized in the `tests/` directory:
+- `tests/unit/` - Unit tests (fast, isolated)
+- `tests/integration/` - Integration tests (component interactions)
+- `tests/e2e/` - End-to-end tests (full workflows)
+
+### Running Tests
+
+**Basic commands:**
+```bash
+# Run all tests
+pytest
+
+# Run with coverage report
+pytest --cov
+
+# Run specific test file
+pytest tests/unit/test_example.py
+
+# Run tests in a specific directory
+pytest tests/unit/
+pytest tests/integration/
+pytest tests/e2e/
+```
+
+### Using Claude Code for Testing
+
+If you have Claude Code installed, you can use these convenient commands:
+- `/test` - Run test suite with coverage and detailed reporting
+- `/fix-tests` - Fix failing tests iteratively with branch-focused coverage
+- `/create-tests [module_path]` - Create tests for a module or analyze coverage gaps
+
+See [AGENTS.md](./AGENTS.md) for more testing details and conventions.
 
 # License
 
