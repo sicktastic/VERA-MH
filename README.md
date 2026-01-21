@@ -15,6 +15,7 @@ There are many quirks of the current structure, which will be simplified and str
 - [Using Extra Parameters](#using-extra-parameters)
 - [Data Files](#data-files)
 - [LLM Conversation Simulator](#llm-conversation-simulator)
+- [Development with Agents](#development-with-agents)
 - [Using Claude Code](#using-claude-code)
 - [License](#license)
 
@@ -48,7 +49,7 @@ There are many quirks of the current structure, which will be simplified and str
    pre-commit install
    ```
 
-4. **(Optional) Create an LLM class for your agent**: see guidance [here](docs/evaluating.MD)
+4. **(Optional) Create an LLM class for your agent**: see guidance [here](docs/evaluating.md)
 
 5. **Run the simulation** (quick test with 6 turns for cost-effective trial):
    ```bash
@@ -148,9 +149,9 @@ python judge.py -f conversations/{YOUR_FOLDER} -j gpt-4o:2 claude-sonnet-4-20250
 ## Data Files
 
 Most of the interesting data is contained in the [`data`](data) folder, specifically:
-- _personas.csv_ has the data for the personas
+- _personas.tsv_ has the data for the personas
 - *personas_prompt_template.txt* has the meta-prompt for the user-agent
-- _rubric.csv_ is the clinically developed rubric
+- _rubric.tsv_ is the clinically developed rubric
 - *rubric_prompt_template.txt* for the judge meta prompt 
 
 
@@ -216,7 +217,7 @@ VERA-MH simulates realistic conversations between Large Language Models (LLMs) f
   - **`conversation_utils.py`**: Conversation formatting and file operations
   - **`logging_utils.py`**: Comprehensive logging for conversations
 - **`data/`**: Persona and configuration data
-  - **`personas.csv`**: CSV file containing patient persona data
+  - **`personas.tsv`**: TSV file containing patient persona data
   - **`persona_prompt_template.txt`**: Template for generating persona prompts
   - **`rubric.tsv`**: Clinical rubric for conversation evaluation
   - **`rubric_prompt_beginning.txt`**: System prompt for the judge
@@ -227,7 +228,7 @@ VERA-MH simulates realistic conversations between Large Language Models (LLMs) f
 
 The system uses a CSV-based approach for managing mental health patient personas:
 
-#### Persona Data Structure (`data/personas.csv`)
+#### Persona Data Structure (`data/personas.tsv`)
 Each persona includes:
 - **Demographics**: Name, Age, Gender, Background
 - **Mental Health Context**: Current mental health situation
@@ -321,7 +322,7 @@ python generate.py
 ```
 
 The script will:
-1. Load personas from `data/personas.csv`
+1. Load personas from `data/personas.tsv`
 2. Generate conversations between each persona and the agent
 3. Run multiple iterations per persona (configurable)
 4. Save conversations and logs to timestamped folders
@@ -330,7 +331,7 @@ The script will:
 
 ### Custom Personas and Prompts
 
-#### 1. Add New Personas (`data/personas.csv`)
+#### 1. Add New Personas (`data/personas.tsv`)
 Add new rows to the CSV file with the required fields:
 
 ```csv
@@ -408,7 +409,7 @@ This project has multiple instructions/insights for agents to utilize as helpful
 See [AGENTS.md](./AGENTS.md) for more info.
 
 
-## Claude Development
+## Using Claude Code
 This project is configured with [Claude Code](https://claude.ai/claude-code), Anthropic's CLI tool that helps with development tasks.
 
 If you have Claude Code installed, you can use these custom commands:
