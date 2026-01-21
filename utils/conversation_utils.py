@@ -89,69 +89,26 @@ def format_conversation_summary(
     return summary
 
 
-def build_persona_role_reminder() -> str:
-    """
-    Build a role reminder message for personas to prevent role confusion.
-
-    This reminder is injected before conversation history to reinforce that
-    the persona should maintain their character as a user in distress, not
-    adopt the chatbot's supportive counselor role.
-
-    Returns:
-        The role reminder text to inject as a HumanMessage
-    """
-    return (
-        "REMINDER: You are the USER seeking help from the chatbot. "
-        "The conversation below shows YOUR messages (what you said) and "
-        "the CHATBOT's responses (what it said). Continue responding AS "
-        "YOURSELF - the user in distress. Do NOT provide advice, support, "
-        "or counseling. Do NOT copy the chatbot's supportive language."
-    )
-
-
 def build_langchain_messages(
     conversation_history: Optional[List[Dict[str, Any]]] = None,
     role: Optional[Role] = None,
 ) -> List[BaseMessage]:
     """
-    Build a list of LangChain messages from conversation history.
-
-    Uses turn indices to determine message type since speaker names can be custom:
-    - Turn 0: Initial message (HumanMessage)
-
-    When LLM is playing persona role (is_persona=True):
-    - Odd turns (1, 3, 5...): Persona responses (AIMessage)
-    - Even turns (2, 4, 6...): Provider responses (HumanMessage)
-
-    When LLM is playing provider role (is_persona=False):
-    - Odd turns (1, 3, 5...): Persona responses (HumanMessage)
-    - Even turns (2, 4, 6...): Provider responses (AIMessage)
-
-    IMPORTANT: This assumes persona always speaks first (see ConversationSimulator
-    line 90-92). If the speaker order changes, this logic must be updated.
+    Build a list of LangChain messages from conversation history for the given role.
 
     Args:
         conversation_history: Optional list of previous conversation turns.
-            Each turn is a dict with keys: 'turn', 'speaker', 'response'.
+            Each turn is a dict with keys: 'turn', 'speaker', 'response', 'role'.
             Turn 0 contains the initial message with speaker="system".
-        role: Optional role of the LLM (Role.PERSONA, Role.AGENT, or None).
-            If role is Role.PERSONA, a role reminder will be automatically
-            injected before conversation history (but only for turns >= 1,
-            not for turn 0).
+        role: Optional role of the LLM (Role.PERSONA, Role.PROVIDER, or None).
+            Messages from the same role are converted to AIMessage (what "I"
+            said), messages from the other role are converted to HumanMessage
+            (what "they" said).
 
     Returns:
         List of LangChain message objects (HumanMessage, AIMessage)
     """
     messages = []
-
-    # Add role reminder for personas if needed
-    # Only add role reminder if we have real conversation history (turn >= 1)
-    has_real_history = conversation_history and any(
-        turn.get("turn", 0) >= 1 for turn in conversation_history
-    )
-    if role == Role.PERSONA and has_real_history:
-        debug_print("[DEBUG] Adding role reminder message for persona")
-        messages.append(HumanMessage(content=build_persona_role_reminder()))
 
     # Add conversation history if provided
     if conversation_history:
@@ -160,6 +117,7 @@ def build_langchain_messages(
         for turn in conversation_history:
             turn_number = turn.get("turn")
             text = turn.get("response")
+            message_role = turn.get("role")
 
             # Skip turns without turn number or response
             if turn_number is None or text is None:
@@ -171,25 +129,32 @@ def build_langchain_messages(
                 messages.append(HumanMessage(content=text))
                 continue
 
-            # Determine message type based on turn number and role
-            # Persona speaks on odd turns (1, 3, 5...), provider on even (2, 4, 6...)
-            is_persona_turn = turn_number % 2 == 1
-
-            # Flip message types when LLM is playing persona role
-            if is_persona:
-                # Persona responses are AIMessage, provider inputs are HumanMessage
-                message = (
-                    AIMessage(content=text)
-                    if is_persona_turn
-                    else HumanMessage(content=text)
-                )
+            # Determine message type based on role comparison
+            # If we have role information, use it directly
+            if message_role is not None and role is not None:
+                try:
+                    turn_role = (
+                        Role(message_role)
+                        if isinstance(message_role, str)
+                        else message_role
+                    )
+                    # If the message's role matches the requesting role, it's an
+                    # AIMessage (what "I" said). Otherwise, it's a HumanMessage
+                    # (what "they" said).
+                    if turn_role == role:
+                        message = AIMessage(content=text)
+                    else:
+                        message = HumanMessage(content=text)
+                except (ValueError, TypeError):
+                    # Invalid role value, fall back to backward compatibility
+                    debug_print(
+                        f"  Warning: Invalid role value '{message_role}', "
+                        "using backward compatibility"
+                    )
+                    message = _determine_message_type_fallback(turn_number, text, role)
             else:
-                # Persona inputs are HumanMessage, provider responses are AIMessage
-                message = (
-                    HumanMessage(content=text)
-                    if is_persona_turn
-                    else AIMessage(content=text)
-                )
+                # Backward compatibility: use turn number logic if role is not available
+                message = _determine_message_type_fallback(turn_number, text, role)
 
             msg_type = type(message).__name__
             preview = text[:50] + "..." if len(text) > 50 else text
@@ -197,6 +162,39 @@ def build_langchain_messages(
             messages.append(message)
 
     return messages
+
+
+def _determine_message_type_fallback(
+    turn_number: int, text: str, role: Optional[Role]
+) -> BaseMessage:
+    """
+    Fallback method to determine message type using turn number logic.
+
+    This is used for backward compatibility when role information is not
+    available.
+
+    Args:
+        turn_number: The turn number (1-indexed)
+        text: The message content
+        role: The role of the requesting LLM
+
+    Returns:
+        AIMessage or HumanMessage
+    """
+    # Persona speaks on odd turns (1, 3, 5...), provider on even (2, 4, 6...)
+    is_persona_turn = turn_number % 2 == 1
+
+    # Flip message types when LLM is playing persona role
+    if role == Role.PERSONA:
+        # Persona responses are AIMessage, provider inputs are HumanMessage
+        return (
+            AIMessage(content=text) if is_persona_turn else HumanMessage(content=text)
+        )
+    else:
+        # Persona inputs are HumanMessage, provider responses are AIMessage
+        return (
+            HumanMessage(content=text) if is_persona_turn else AIMessage(content=text)
+        )
 
 
 def format_conversation_as_string(
@@ -213,7 +211,7 @@ def format_conversation_as_string(
     Args:
         conversation_history: Optional list of previous conversation turns
         system_prompt: Optional system prompt to prepend
-        role: Optional role of the LLM (Role.PERSONA, Role.AGENT, or None)
+        role: Optional role of the LLM (Role.PERSONA, Role.PROVIDER, or None)
 
     Returns:
         Formatted string with System, Human, and Assistant labels

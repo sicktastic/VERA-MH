@@ -539,13 +539,27 @@ class TestOpenAILLM:
         mock_chat_openai.return_value = mock_llm
 
         # Persona system prompt should trigger message type flipping
+        from llm_clients.llm_interface import Role
+
         persona_prompt = "You are roleplaying as a human user"
-        llm = OpenAILLM(name="TestOpenAI", system_prompt=persona_prompt)
+        llm = OpenAILLM(
+            name="TestOpenAI", system_prompt=persona_prompt, role=Role.PERSONA
+        )
 
         history = [
-            {"turn": 1, "speaker": "persona", "response": "Hello"},
-            {"turn": 2, "speaker": "provider", "response": "Hi there"},
-            {"turn": 3, "speaker": "persona", "response": "How are you?"},
+            {"turn": 1, "speaker": "persona", "response": "Hello", "role": "persona"},
+            {
+                "turn": 2,
+                "speaker": "provider",
+                "response": "Hi there",
+                "role": "provider",
+            },
+            {
+                "turn": 3,
+                "speaker": "persona",
+                "response": "How are you?",
+                "role": "persona",
+            },
         ]
 
         response = await llm.generate_response(conversation_history=history)

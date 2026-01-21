@@ -80,7 +80,6 @@ class GeminiLLM(JudgeLLM):
             messages.append(SystemMessage(content=self.system_prompt))
 
         # Build messages from history
-        # Role reminder is automatically added for personas by build_langchain_messages
         messages.extend(build_langchain_messages(conversation_history, self.role))
 
         # Debug: Print messages being sent to LLM

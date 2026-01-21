@@ -455,13 +455,27 @@ class TestLlamaLLMConversationHistory:
         mock_ollama.return_value = mock_instance
 
         # Persona system prompt should trigger message type flipping
+        from llm_clients.llm_interface import Role
+
         persona_prompt = "You are roleplaying as a human user"
-        llm = LlamaLLM(name="test-llama", system_prompt=persona_prompt)
+        llm = LlamaLLM(
+            name="test-llama", system_prompt=persona_prompt, role=Role.PERSONA
+        )
 
         history = [
-            {"turn": 1, "speaker": "persona", "response": "Hello"},
-            {"turn": 2, "speaker": "provider", "response": "Hi there"},
-            {"turn": 3, "speaker": "persona", "response": "How are you?"},
+            {"turn": 1, "speaker": "persona", "response": "Hello", "role": "persona"},
+            {
+                "turn": 2,
+                "speaker": "provider",
+                "response": "Hi there",
+                "role": "provider",
+            },
+            {
+                "turn": 3,
+                "speaker": "persona",
+                "response": "How are you?",
+                "role": "persona",
+            },
         ]
 
         response = await llm.generate_response(conversation_history=history)

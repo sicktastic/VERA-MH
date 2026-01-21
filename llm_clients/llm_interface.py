@@ -11,7 +11,7 @@ class Role(Enum):
     """Role of the LLM in a conversation."""
 
     PERSONA = "persona"  # User roleplaying as a human seeking help
-    AGENT = "agent"  # Chatbot providing support
+    PROVIDER = "provider"  # Chatbot providing support
 
 
 class LLMInterface(ABC):

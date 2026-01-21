@@ -60,9 +60,8 @@ class ConversationSimulator:
         if initial_message is None:
             initial_message = "Start the conversation based on the system prompt"
 
-        # IMPORTANT: Persona always starts first (turn 1, 3, 5...)
-        # This determines the odd/even pattern in build_langchain_messages()
-        # If you change this order, update utils/conversation_utils.py accordingly
+        # Start with persona by default, but this can be changed
+        # The role-based logic in build_langchain_messages() handles any starting order
         current_speaker = self.persona
         next_speaker = self.agent
 
@@ -78,6 +77,7 @@ class ConversationSimulator:
                     "turn": 0,
                     "speaker": "system",
                     "response": initial_message,
+                    "role": None,  # System message has no role
                 }
                 history_dicts = [initial_turn]
             else:
@@ -115,6 +115,7 @@ class ConversationSimulator:
                 speaker=current_speaker.get_name(),
                 input_message=input_msg,
                 message=lc_message,
+                role=current_speaker.get_role(),
                 early_termination=False,
                 logging_metadata=current_speaker.get_last_response_metadata(),
             )

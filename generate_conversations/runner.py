@@ -173,7 +173,7 @@ class ConversationRunner:
             model_name=self.agent_model_config["model"],
             name=self.agent_model_config.pop("name"),
             system_prompt=self.AGENT_SYSTEM_PROMPT,
-            role=Role.AGENT,
+            role=Role.PROVIDER,
             **self.agent_model_config,
         )
 

@@ -26,7 +26,7 @@ class LLMFactory:
                 (e.g., "claude-3-5-sonnet-20241022", "gpt-4")
             name: Display name for this LLM instance
             system_prompt: Optional system prompt
-            role: Optional role of the LLM (Role.PERSONA, Role.AGENT, or None)
+            role: Optional role of the LLM (Role.PERSONA, Role.PROVIDER, or None)
             **kwargs: Additional model-specific parameters
                 (temperature, max_tokens, etc.)
 
@@ -84,7 +84,7 @@ class LLMFactory:
                 (e.g., "claude-3-5-sonnet-20241022", "gpt-4")
             name: Display name for this LLM instance
             system_prompt: Optional system prompt
-            role: Optional role of the LLM (Role.PERSONA, Role.AGENT, or None)
+            role: Optional role of the LLM (Role.PERSONA, Role.PROVIDER, or None)
             **kwargs: Additional model-specific parameters
                 (temperature, max_tokens, etc.)
 
