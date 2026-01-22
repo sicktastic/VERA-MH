@@ -67,6 +67,36 @@ Where
 - `j` is the flag for selecting the judge model(s)
 - `jep` are the judge model extra parameters (optional)
 
+7. **Score and visualize the results**:
+   ```bash
+   python -m judge.score -r evaluations/{YOUR_EVAL_FOLDER}/results.csv
+   ```
+
+## Quick Start: End-to-End Pipeline
+
+For convenience, you can run the entire workflow (generation → evaluation → scoring) with a single command:
+
+```bash
+python3 run_pipeline.py \
+  --user-agent claude-3-5-sonnet-20241022 \
+  --provider-agent gpt-4o \
+  --runs 2 \
+  --turns 10 \
+  --judge-model claude-3-5-sonnet-20241022 \
+  --max-personas 5
+```
+
+The pipeline script:
+- Runs `generate.py` with your specified arguments
+- Automatically passes the output folder to `judge.py`
+- Automatically runs `judge/score.py` on the evaluation results
+- Displays a summary with all output locations
+
+For help and all available options:
+```bash
+python3 run_pipeline.py --help
+```
+
 ### Using Extra Parameters
 
 Both `generate.py` and `judge.py` support extra parameters for fine-tuning model behavior:

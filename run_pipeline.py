@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+"""
+VERA-MH End-to-End Pipeline Runner (Python version)
+
+This script orchestrates the complete workflow:
+  1. Generate conversations (generate.py)
+  2. Evaluate them with LLM judge (judge.py)
+  3. Score and visualize results (judge/score.py)
+
+It automatically passes the output folder from each step to the next step,
+so you don't have to manually copy paths between commands.
+"""
+
+import argparse
+import asyncio
+import os
+import sys
+
+from judge.score import score_results
+from utils.utils import parse_key_value_list
+
+
+def parse_arguments():
+    """
+    Parse command line arguments and separate them into three groups:
+    - Arguments for generate.py
+    - Arguments for judge.py
+    - Arguments for judge/score.py
+    """
+    parser = argparse.ArgumentParser(
+        description="VERA-MH Pipeline Runner: Generation → Evaluation → Scoring",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Example:
+  %(prog)s --user-agent claude-3-5-sonnet-20241022 \\
+           --provider-agent gpt-4o \\
+           --runs 2 \\
+           --turns 10 \\
+           --judge-model claude-3-5-sonnet-20241022 \\
+           --max-personas 5
+        """,
+    )
+
+    # Required arguments for generation
+    parser.add_argument(
+        "--user-agent",
+        "-u",
+        required=True,
+        help="User/persona model (e.g., claude-3-5-sonnet-20241022)",
+    )
+    parser.add_argument(
+        "--provider-agent",
+        "-p",
+        required=True,
+        help="Provider/agent model (e.g., gpt-4o)",
+    )
+    parser.add_argument(
+        "--runs", "-r", type=int, required=True, help="Number of runs per persona"
+    )
+    parser.add_argument(
+        "--turns",
+        "-t",
+        type=int,
+        required=True,
+        help="Number of turns per conversation",
+    )
+
+    # Required arguments for judge
+    parser.add_argument(
+        "--judge-model",
+        "-j",
+        nargs="+",
+        required=True,
+        help="Judge model(s), format: model or model:count",
+    )
+
+    # Optional arguments for generation
+    parser.add_argument(
+        "--user-agent-extra-params",
+        "-uep",
+        help="Extra params for user agent (e.g., temperature=0.7)",
+        type=parse_key_value_list,
+        default={},
+    )
+    parser.add_argument(
+        "--provider-agent-extra-params",
+        "-pep",
+        help="Extra params for provider agent (e.g., temperature=0.5)",
+        type=parse_key_value_list,
+        default={},
+    )
+    parser.add_argument(
+        "--max-total-words",
+        "-w",
+        type=int,
+        help="Maximum total words per conversation",
+    )
+    parser.add_argument(
+        "--max-concurrent", type=int, help="Maximum concurrent conversations"
+    )
+    parser.add_argument(
+        "--max-personas",
+        type=int,
+        help="Maximum number of personas to load (for testing)",
+    )
+    parser.add_argument("--folder-name", help="Custom folder name for conversations")
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable debug logging for generation"
+    )
+
+    # Optional arguments for judge
+    parser.add_argument(
+        "--judge-model-extra-params",
+        "-jep",
+        help="Extra params for judge model",
+        type=parse_key_value_list,
+        default={},
+    )
+    parser.add_argument(
+        "--judge-max-concurrent", type=int, help="Maximum concurrent judge workers"
+    )
+    parser.add_argument(
+        "--judge-per-judge",
+        action="store_true",
+        help="Apply concurrency limit per judge",
+    )
+    parser.add_argument(
+        "--judge-limit", type=int, help="Limit conversations to judge (for testing)"
+    )
+    parser.add_argument(
+        "--judge-verbose-workers",
+        action="store_true",
+        help="Enable verbose worker logging",
+    )
+
+    # Optional arguments for scoring
+    parser.add_argument(
+        "--skip-risk-analysis", action="store_true", help="Skip risk-level analysis"
+    )
+    parser.add_argument(
+        "--personas-tsv",
+        default="data/personas.tsv",
+        help="Path to personas.tsv (default: data/personas.tsv)",
+    )
+
+    return parser.parse_args()
+
+
+async def main():
+    """Main entry point for the pipeline runner."""
+
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print("VERA-MH Pipeline: Generation → Evaluation → Scoring")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print("")
+
+    # Parse command line arguments
+    args = parse_arguments()
+
+    # Import generate and judge main functions
+    # We import here to avoid circular dependencies and to allow --debug flag to be set
+    from generate import main as generate_main
+    from judge import main as judge_main
+
+    # Set debug mode if flag is provided
+    if args.debug:
+        from utils.logger import set_debug
+
+        set_debug(True)
+
+    # =========================================================================
+    # Step 1: Generate conversations
+    # =========================================================================
+    print("▶ Step 1/3: Generating conversations...")
+
+    # Build model configs for generation
+    persona_model_config = {
+        "model": args.user_agent,
+        **args.user_agent_extra_params,
+    }
+
+    agent_model_config = {
+        "model": args.provider_agent,
+        "name": args.provider_agent,
+        **args.provider_agent_extra_params,
+    }
+
+    # Call generate.py's main function directly
+    _, conversation_folder = await generate_main(
+        persona_model_config=persona_model_config,
+        agent_model_config=agent_model_config,
+        max_turns=args.turns,
+        runs_per_prompt=args.runs,
+        persona_extra_run_params={
+            k: v
+            for k, v in persona_model_config.items()
+            if k not in ["model", "model_name", "name", "temperature", "max_tokens"]
+        },
+        agent_extra_run_params={
+            k: v
+            for k, v in agent_model_config.items()
+            if k not in ["model", "model_name", "name", "temperature", "max_tokens"]
+        },
+        folder_name=args.folder_name,
+        max_concurrent=args.max_concurrent,
+        max_total_words=args.max_total_words,
+        max_personas=args.max_personas,
+    )
+
+    print("")
+    print(f"✓ Conversations saved to: {conversation_folder}/")
+    print("")
+
+    # =========================================================================
+    # Step 2: Evaluate conversations with LLM judge
+    # =========================================================================
+    print("▶ Step 2/3: Evaluating conversations...")
+
+    # Build argparse.Namespace for judge.py's main function
+    judge_args = argparse.Namespace(
+        conversation=None,  # Not using single conversation mode
+        folder=conversation_folder,
+        rubrics=["data/rubric.tsv"],
+        judge_model=args.judge_model,
+        judge_model_extra_params=args.judge_model_extra_params,
+        limit=args.judge_limit,
+        output="evaluations",
+        max_concurrent=args.judge_max_concurrent,
+        per_judge=args.judge_per_judge,
+        verbose_workers=args.judge_verbose_workers,
+    )
+
+    # Call judge.py's main function directly
+    evaluation_folder = await judge_main(judge_args)
+
+    if not evaluation_folder:
+        print("Error: Judge did not return an evaluation folder")
+        sys.exit(1)
+
+    print("")
+    print(f"✓ Evaluations saved to: {evaluation_folder}/")
+    print("")
+
+    # =========================================================================
+    # Step 3: Score results and create visualizations
+    # =========================================================================
+    print("▶ Step 3/3: Scoring and visualizing results...")
+
+    # Build paths for scoring
+    results_csv = os.path.join(evaluation_folder, "results.csv")
+
+    # Call score_results directly
+    score_results(
+        results_csv_path=results_csv,
+        personas_tsv_path=args.personas_tsv,
+        skip_risk_analysis=args.skip_risk_analysis,
+    )
+
+    # =========================================================================
+    # Final summary
+    # =========================================================================
+    print("")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print("✓ Pipeline complete!")
+    print("")
+    print("Output Locations:")
+    print(f"  Conversations:     {conversation_folder}/")
+    print(f"  Evaluations:       {evaluation_folder}/")
+    print(f"  Scores (JSON):     {evaluation_folder}/scores.json")
+    print(f"                     {evaluation_folder}/scores_by_risk.json")
+    print(f"  Visualizations:    {evaluation_folder}/scores_visualization.png")
+    print(f"                     {evaluation_folder}/scores_by_risk_visualization.png")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
