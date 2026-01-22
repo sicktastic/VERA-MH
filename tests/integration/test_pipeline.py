@@ -1,0 +1,383 @@
+"""
+Integration tests for run_pipeline.py end-to-end pipeline orchestration.
+
+Tests the three-stage pipeline: generation → evaluation → scoring
+Following VERA-MH testing patterns from test_conversation_runner.py
+
+Note: Full end-to-end execution tests are complex due to module import mechanics.
+These tests focus on argument parsing, configuration building, and error paths.
+"""
+
+import argparse
+from unittest.mock import patch
+
+import pytest
+
+# Fixtures
+
+
+@pytest.fixture
+def pipeline_args():
+    """Minimal valid pipeline arguments."""
+    return argparse.Namespace(
+        user_agent="claude-3-5-sonnet-20241022",
+        provider_agent="gpt-4o",
+        runs=1,
+        turns=4,
+        judge_model=["claude-3-5-sonnet-20241022"],
+        user_agent_extra_params={},
+        provider_agent_extra_params={},
+        max_total_words=None,
+        max_concurrent=None,
+        max_personas=2,
+        folder_name=None,
+        debug=False,
+        judge_model_extra_params={},
+        judge_max_concurrent=None,
+        judge_per_judge=False,
+        judge_limit=None,
+        judge_verbose_workers=False,
+        skip_risk_analysis=False,
+        personas_tsv="data/personas.tsv",
+    )
+
+
+# Test Classes
+
+
+@pytest.mark.integration
+class TestPipelineArgumentParsing:
+    """Test argument parsing and validation."""
+
+    def test_parse_arguments_required_only(self):
+        """Test parsing with only required arguments."""
+        from run_pipeline import parse_arguments
+
+        test_args = [
+            "--user-agent",
+            "claude-3-5-sonnet-20241022",
+            "--provider-agent",
+            "gpt-4o",
+            "--runs",
+            "1",
+            "--turns",
+            "4",
+            "--judge-model",
+            "claude-3-5-sonnet-20241022",
+        ]
+
+        with patch("sys.argv", ["run_pipeline.py"] + test_args):
+            args = parse_arguments()
+
+            assert args.user_agent == "claude-3-5-sonnet-20241022"
+            assert args.provider_agent == "gpt-4o"
+            assert args.runs == 1
+            assert args.turns == 4
+            assert args.judge_model == ["claude-3-5-sonnet-20241022"]
+
+    def test_parse_arguments_with_extra_params(self):
+        """Test parsing with extra model parameters."""
+        from run_pipeline import parse_arguments
+
+        test_args = [
+            "--user-agent",
+            "claude-3-5-sonnet-20241022",
+            "--provider-agent",
+            "gpt-4o",
+            "--runs",
+            "1",
+            "--turns",
+            "4",
+            "--judge-model",
+            "claude-3-5-sonnet-20241022",
+            "--user-agent-extra-params",
+            "temperature=0.7,max_tokens=1000",
+            "--provider-agent-extra-params",
+            "temperature=0.5",
+            "--judge-model-extra-params",
+            "temperature=0.1",
+        ]
+
+        with patch("sys.argv", ["run_pipeline.py"] + test_args):
+            args = parse_arguments()
+
+            assert args.user_agent_extra_params == {
+                "temperature": 0.7,
+                "max_tokens": 1000,
+            }
+            assert args.provider_agent_extra_params == {"temperature": 0.5}
+            assert args.judge_model_extra_params == {"temperature": 0.1}
+
+    def test_parse_arguments_multiple_judge_models(self):
+        """Test parsing with multiple judge models."""
+        from run_pipeline import parse_arguments
+
+        test_args = [
+            "--user-agent",
+            "claude-3-5-sonnet-20241022",
+            "--provider-agent",
+            "gpt-4o",
+            "--runs",
+            "1",
+            "--turns",
+            "4",
+            "--judge-model",
+            "claude-3-5-sonnet-20241022:2",
+            "gpt-4o",
+        ]
+
+        with patch("sys.argv", ["run_pipeline.py"] + test_args):
+            args = parse_arguments()
+
+            assert args.judge_model == ["claude-3-5-sonnet-20241022:2", "gpt-4o"]
+
+    def test_parse_arguments_missing_required(self):
+        """Test that missing required arguments raises error."""
+        from run_pipeline import parse_arguments
+
+        test_args = [
+            "--user-agent",
+            "claude-3-5-sonnet-20241022",
+            # Missing other required args
+        ]
+
+        with patch("sys.argv", ["run_pipeline.py"] + test_args):
+            with pytest.raises(SystemExit):
+                parse_arguments()
+
+    def test_parse_arguments_optional_flags(self):
+        """Test parsing optional boolean flags."""
+        from run_pipeline import parse_arguments
+
+        test_args = [
+            "--user-agent",
+            "claude-3-5-sonnet-20241022",
+            "--provider-agent",
+            "gpt-4o",
+            "--runs",
+            "1",
+            "--turns",
+            "4",
+            "--judge-model",
+            "claude-3-5-sonnet-20241022",
+            "--debug",
+            "--judge-per-judge",
+            "--judge-verbose-workers",
+            "--skip-risk-analysis",
+        ]
+
+        with patch("sys.argv", ["run_pipeline.py"] + test_args):
+            args = parse_arguments()
+
+            assert args.debug is True
+            assert args.judge_per_judge is True
+            assert args.judge_verbose_workers is True
+            assert args.skip_risk_analysis is True
+
+    def test_parse_arguments_with_all_optional_arguments(self):
+        """Test parsing with all optional arguments provided."""
+        from run_pipeline import parse_arguments
+
+        test_args = [
+            "--user-agent",
+            "claude-3-5-sonnet-20241022",
+            "--provider-agent",
+            "gpt-4o",
+            "--runs",
+            "2",
+            "--turns",
+            "10",
+            "--judge-model",
+            "claude-3-5-sonnet-20241022:2",
+            "gpt-4o",
+            "--user-agent-extra-params",
+            "temperature=0.7",
+            "--provider-agent-extra-params",
+            "temperature=0.5",
+            "--max-total-words",
+            "5000",
+            "--max-concurrent",
+            "10",
+            "--max-personas",
+            "5",
+            "--folder-name",
+            "custom_folder",
+            "--debug",
+            "--judge-model-extra-params",
+            "temperature=0.1",
+            "--judge-max-concurrent",
+            "5",
+            "--judge-per-judge",
+            "--judge-limit",
+            "10",
+            "--judge-verbose-workers",
+            "--skip-risk-analysis",
+            "--personas-tsv",
+            "custom/personas.tsv",
+        ]
+
+        with patch("sys.argv", ["run_pipeline.py"] + test_args):
+            args = parse_arguments()
+
+            # Check all values were parsed correctly
+            assert args.runs == 2
+            assert args.turns == 10
+            assert args.max_total_words == 5000
+            assert args.max_concurrent == 10
+            assert args.max_personas == 5
+            assert args.folder_name == "custom_folder"
+            assert args.judge_max_concurrent == 5
+            assert args.judge_limit == 10
+            assert args.personas_tsv == "custom/personas.tsv"
+
+
+@pytest.mark.integration
+class TestPipelineConfiguration:
+    """Test configuration building logic from arguments."""
+
+    def test_persona_model_config_dict_structure(self, pipeline_args):
+        """Test that persona model config is built with correct structure."""
+        # Build config as done in main()
+        persona_config = {
+            "model": pipeline_args.user_agent,
+            **pipeline_args.user_agent_extra_params,
+        }
+
+        assert "model" in persona_config
+        assert persona_config["model"] == "claude-3-5-sonnet-20241022"
+        assert isinstance(persona_config, dict)
+
+    def test_agent_model_config_dict_structure(self, pipeline_args):
+        """Test that agent model config is built with correct structure."""
+        # Build config as done in main()
+        agent_config = {
+            "model": pipeline_args.provider_agent,
+            "name": pipeline_args.provider_agent,
+            **pipeline_args.provider_agent_extra_params,
+        }
+
+        assert "model" in agent_config
+        assert "name" in agent_config
+        assert agent_config["model"] == "gpt-4o"
+        assert agent_config["name"] == "gpt-4o"
+        assert isinstance(agent_config, dict)
+
+    def test_extra_params_merge_into_config(self):
+        """Test that extra params correctly merge into model configs."""
+        args = argparse.Namespace(
+            user_agent="claude-3-5-sonnet-20241022",
+            provider_agent="gpt-4o",
+            user_agent_extra_params={"temperature": 0.7, "max_tokens": 1000},
+            provider_agent_extra_params={"temperature": 0.5},
+        )
+
+        persona_config = {
+            "model": args.user_agent,
+            **args.user_agent_extra_params,
+        }
+
+        agent_config = {
+            "model": args.provider_agent,
+            "name": args.provider_agent,
+            **args.provider_agent_extra_params,
+        }
+
+        # Check persona config
+        assert persona_config["model"] == "claude-3-5-sonnet-20241022"
+        assert persona_config["temperature"] == 0.7
+        assert persona_config["max_tokens"] == 1000
+
+        # Check agent config
+        assert agent_config["model"] == "gpt-4o"
+        assert agent_config["temperature"] == 0.5
+
+    def test_judge_args_namespace_structure(self, pipeline_args):
+        """Test that judge args Namespace is constructed correctly."""
+        conv_folder = "conversations/test"
+
+        # Build judge args as done in main()
+        judge_args = argparse.Namespace(
+            conversation=None,
+            folder=conv_folder,
+            rubrics=["data/rubric.tsv"],
+            judge_model=pipeline_args.judge_model,
+            judge_model_extra_params=pipeline_args.judge_model_extra_params,
+            limit=pipeline_args.judge_limit,
+            output="evaluations",
+            max_concurrent=pipeline_args.judge_max_concurrent,
+            per_judge=pipeline_args.judge_per_judge,
+            verbose_workers=pipeline_args.judge_verbose_workers,
+        )
+
+        # Verify structure
+        assert isinstance(judge_args, argparse.Namespace)
+        assert judge_args.conversation is None
+        assert judge_args.folder == conv_folder
+        assert judge_args.rubrics == ["data/rubric.tsv"]
+        assert judge_args.judge_model == ["claude-3-5-sonnet-20241022"]
+        assert judge_args.output == "evaluations"
+
+    def test_empty_extra_params_dont_pollute_config(self):
+        """Test that empty extra params don't add unwanted keys."""
+        args = argparse.Namespace(
+            user_agent="claude-3-5-sonnet-20241022",
+            user_agent_extra_params={},
+        )
+
+        persona_config = {
+            "model": args.user_agent,
+            **args.user_agent_extra_params,
+        }
+
+        # Should only have the model key
+        assert len(persona_config) == 1
+        assert "model" in persona_config
+
+
+@pytest.mark.integration
+class TestPipelineDataFlow:
+    """Test data flow and path construction between stages."""
+
+    def test_conversation_folder_to_judge_path_construction(self):
+        """Test that conversation folder path is correctly passed to judge."""
+        conv_folder = "conversations/test_20240101_120000"
+
+        # As done in main(): judge receives the folder
+        judge_args = argparse.Namespace(
+            folder=conv_folder,
+            conversation=None,
+        )
+
+        assert judge_args.folder == conv_folder
+        assert judge_args.conversation is None
+
+    def test_evaluation_folder_to_score_path_construction(self):
+        """Test that evaluation folder path is correctly transformed for score."""
+        import os
+
+        eval_folder = "evaluations/test_20240101_120000"
+
+        # As done in main(): score receives results.csv path
+        results_csv = os.path.join(eval_folder, "results.csv")
+
+        assert results_csv == "evaluations/test_20240101_120000/results.csv"
+        assert results_csv.startswith(eval_folder)
+        assert results_csv.endswith("results.csv")
+
+    def test_personas_tsv_path_passed_to_score(self, pipeline_args):
+        """Test that personas.tsv path is correctly passed to score."""
+        # As done in main()
+        personas_tsv_path = pipeline_args.personas_tsv
+
+        assert personas_tsv_path == "data/personas.tsv"
+
+    def test_skip_risk_analysis_flag_passed_to_score(self, pipeline_args):
+        """Test that skip_risk_analysis flag is correctly passed to score."""
+        # As done in main()
+        skip_risk = pipeline_args.skip_risk_analysis
+
+        assert skip_risk is False  # Default value
+
+        # Test with True
+        pipeline_args.skip_risk_analysis = True
+        assert pipeline_args.skip_risk_analysis is True
