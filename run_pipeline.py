@@ -184,8 +184,16 @@ async def main():
 
     # Import generate and judge main functions
     # We import here to avoid circular dependencies and to allow --debug flag to be set
+    # Import judge.py main function
+    # (note: judge.py is a module file, judge/ is a package)
+    import importlib.util
+
     from generate import main as generate_main
-    from judge import main as judge_main
+
+    spec = importlib.util.spec_from_file_location("judge_script", "judge.py")
+    judge_script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(judge_script)
+    judge_main = judge_script.main
 
     # Set debug mode if flag is provided
     if args.debug:
