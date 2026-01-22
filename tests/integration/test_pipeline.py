@@ -535,3 +535,60 @@ class TestPipelineNewArguments:
             assert args.run_id is None
             assert args.rubrics == ["data/rubric.tsv"]
             assert args.judge_output == "evaluations"
+
+    def test_short_flags_for_extra_params(self):
+        """Test that short flags work for extra params arguments."""
+        from run_pipeline import parse_arguments
+
+        test_args = [
+            "--user-agent",
+            "claude-3-5-sonnet-20241022",
+            "--provider-agent",
+            "gpt-4o",
+            "--runs",
+            "1",
+            "--turns",
+            "4",
+            "--judge-model",
+            "claude-3-5-sonnet-20241022",
+            "-uep",
+            "temperature=0.7,max_tokens=1000",
+            "-pep",
+            "temperature=0.5",
+            "-jep",
+            "temperature=0.1",
+        ]
+
+        with patch("sys.argv", ["run_pipeline.py"] + test_args):
+            args = parse_arguments()
+
+            assert args.user_agent_extra_params == {
+                "temperature": 0.7,
+                "max_tokens": 1000,
+            }
+            assert args.provider_agent_extra_params == {"temperature": 0.5}
+            assert args.judge_model_extra_params == {"temperature": 0.1}
+
+    def test_short_flag_for_run_id(self):
+        """Test that short flag -i works for run-id."""
+        from run_pipeline import parse_arguments
+
+        test_args = [
+            "--user-agent",
+            "claude-3-5-sonnet-20241022",
+            "--provider-agent",
+            "gpt-4o",
+            "--runs",
+            "1",
+            "--turns",
+            "4",
+            "--judge-model",
+            "claude-3-5-sonnet-20241022",
+            "-i",
+            "custom_run",
+        ]
+
+        with patch("sys.argv", ["run_pipeline.py"] + test_args):
+            args = parse_arguments()
+
+            assert args.run_id == "custom_run"
