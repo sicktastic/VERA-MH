@@ -205,6 +205,8 @@ class TestPipelineArgumentParsing:
             "5",
             "--folder-name",
             "custom_folder",
+            "--run-id",
+            "test_run_id",
             "--debug",
             "--judge-model-extra-params",
             "temperature=0.1",
@@ -214,6 +216,11 @@ class TestPipelineArgumentParsing:
             "--judge-limit",
             "10",
             "--judge-verbose-workers",
+            "--rubrics",
+            "data/rubric.tsv",
+            "data/custom_rubric.tsv",
+            "--judge-output",
+            "custom_output",
             "--skip-risk-analysis",
             "--personas-tsv",
             "custom/personas.tsv",
@@ -229,8 +236,11 @@ class TestPipelineArgumentParsing:
             assert args.max_concurrent == 10
             assert args.max_personas == 5
             assert args.folder_name == "custom_folder"
+            assert args.run_id == "test_run_id"
             assert args.judge_max_concurrent == 5
             assert args.judge_limit == 10
+            assert args.rubrics == ["data/rubric.tsv", "data/custom_rubric.tsv"]
+            assert args.judge_output == "custom_output"
             assert args.personas_tsv == "custom/personas.tsv"
 
 
