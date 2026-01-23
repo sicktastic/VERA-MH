@@ -162,12 +162,11 @@ class ConversationRunner:
 
             # Cleanup LLM resources (e.g., close HTTP sessions for Azure)
             # Always cleanup, even if conversation failed
-            if hasattr(persona, "close"):
-                try:
-                    await persona.close()
-                except Exception as e:
-                    # Log but don't fail if cleanup fails
-                    print(f"Warning: Failed to cleanup persona LLM: {e}")
+            try:
+                await persona.cleanup()
+            except Exception as e:
+                # Log but don't fail if cleanup fails
+                print(f"Warning: Failed to cleanup persona LLM: {e}")
 
         return result
 
@@ -236,11 +235,10 @@ class ConversationRunner:
         print(f"\nCompleted {len(results)} conversations in {total_time:.2f} seconds")
 
         # Cleanup agent LLM resources (e.g., close HTTP sessions for Azure)
-        if hasattr(agent, "close"):
-            try:
-                await agent.close()
-            except Exception as e:
-                # Log but don't fail if cleanup fails
-                print(f"Warning: Failed to cleanup agent LLM: {e}")
+        try:
+            await agent.cleanup()
+        except Exception as e:
+            # Log but don't fail if cleanup fails
+            print(f"Warning: Failed to cleanup agent LLM: {e}")
 
         return results

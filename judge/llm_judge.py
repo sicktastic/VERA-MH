@@ -78,6 +78,9 @@ class LLMJudge:
             question_order=rubric_config.question_order,
         )
 
+        # Initialize evaluator (created per conversation evaluation)
+        self.evaluator: Optional[JudgeLLM] = None
+
         # Log initialization info
         self.logger.info("=== Initializing LLM Judge ===")
         self.logger.info(f"Judge model: {judge_model}")
@@ -215,9 +218,9 @@ class LLMJudge:
             )
 
         # Cleanup LLM resources (e.g., close HTTP sessions for Azure)
-        if hasattr(self, "evaluator") and hasattr(self.evaluator, "close"):
+        if self.evaluator is not None:
             try:
-                await self.evaluator.close()
+                await self.evaluator.cleanup()
             except Exception as e:
                 # Log but don't fail if cleanup fails
                 self.logger.warning(f"Failed to cleanup evaluator LLM: {e}")
@@ -551,6 +554,9 @@ class LLMJudge:
         self.logger.info(f"PROMPT:\n{prompt}")
 
         # Use structured output to get response
+        assert (
+            self.evaluator is not None
+        ), "Evaluator must be initialized before asking questions"
         structured_response = await self.evaluator.generate_structured_response(
             prompt, QuestionResponse
         )

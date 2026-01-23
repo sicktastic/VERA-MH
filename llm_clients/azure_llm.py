@@ -309,6 +309,14 @@ class AzureLLM(JudgeLLM):
         """Set or update the system prompt."""
         self.system_prompt = system_prompt
 
+    async def cleanup(self) -> None:
+        """Clean up Azure LLM resources by closing HTTP sessions.
+
+        This method closes any HTTP client sessions to prevent resource leaks.
+        Should be called when the LLM instance is no longer needed.
+        """
+        await self.close()
+
     async def close(self) -> None:
         """Close the underlying LLM client and clean up resources.
 
