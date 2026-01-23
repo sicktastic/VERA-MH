@@ -50,7 +50,8 @@ class TestLLMFactory:
     @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
     def test_create_claude_llm(self):
         """Test that factory correctly creates Claude LLM instance."""
-        model_name = "claude-3-5-sonnet-20241022"
+        # Arrange
+        model_name = "claude-sonnet-4-5-20250929"
         name = "TestClaude"
         system_prompt = "You are a helpful assistant."
 
@@ -140,7 +141,8 @@ class TestLLMFactory:
     @patch("llm_clients.claude_llm.ChatAnthropic")
     def test_factory_passes_kwargs(self, mock_chat_anthropic):
         """Test that factory correctly forwards kwargs to LLM implementations."""
-        model_name = "claude-3-5-sonnet-20241022"
+        # Arrange
+        model_name = "claude-sonnet-4-5-20250929"
         name = "TestKwargs"
         temperature = 0.5
         max_tokens = 500
