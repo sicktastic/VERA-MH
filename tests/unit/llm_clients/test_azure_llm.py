@@ -179,6 +179,22 @@ class TestAzureLLM:
 
             assert "must start with 'https://'" in str(exc_info.value)
 
+    def test_init_invalid_endpoint_pattern_raises_error(self, mock_azure_config):
+        """Test that endpoint with unexpected pattern raises ValueError."""
+        with (
+            patch(
+                "llm_clients.azure_llm.Config.AZURE_ENDPOINT",
+                "https://test.example.com",
+            ),
+            patch("llm_clients.azure_llm.AzureAIChatCompletionsModel"),
+        ):
+            with pytest.raises(ValueError) as exc_info:
+                AzureLLM(name="TestAzure")
+
+            assert "must match expected patterns" in str(exc_info.value)
+            assert ".openai.azure.com" in str(exc_info.value)
+            assert ".services.ai.azure.com" in str(exc_info.value)
+
     @pytest.mark.asyncio
     async def test_generate_response_success_with_system_prompt(
         self, mock_azure_config, mock_azure_model

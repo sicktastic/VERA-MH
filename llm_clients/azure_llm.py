@@ -105,12 +105,13 @@ class AzureLLM(JudgeLLM):
                 f"Azure endpoint must start with 'https://'. Got: {self.endpoint}"
             )
 
-        # Warn if endpoint doesn't match expected patterns
+        # Validate endpoint matches expected Azure patterns
         expected_patterns = (".openai.azure.com", ".services.ai.azure.com")
         if not any(pattern in self.endpoint for pattern in expected_patterns):
-            print(
-                "  WARNING: Endpoint doesn't match expected Azure patterns. "
-                "Expected '.openai.azure.com' or '.services.ai.azure.com'"
+            raise ValueError(
+                f"Azure endpoint must match expected patterns. "
+                f"Expected '.openai.azure.com' or '.services.ai.azure.com'. "
+                f"Got: {self.endpoint}"
             )
 
         self.llm = AzureAIChatCompletionsModel(**llm_params)
