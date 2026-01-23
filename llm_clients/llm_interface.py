@@ -65,6 +65,10 @@ class LLMInterface(ABC):
         """Get the role of this LLM instance."""
         return self.role
 
+    def get_role_value(self) -> Optional[str]:
+        """Get the role value as a string, or None if no role is set."""
+        return self.role.value if self.role else None
+
     async def cleanup(self) -> None:
         """Clean up any resources used by this LLM instance.
 
