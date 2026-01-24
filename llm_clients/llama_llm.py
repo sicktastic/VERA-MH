@@ -19,12 +19,12 @@ class LlamaLLM(LLMInterface):
     def __init__(
         self,
         name: str,
+        role: Role,
         system_prompt: Optional[str] = None,
         model_name: Optional[str] = None,
-        role: Optional[Role] = None,
         **kwargs,
     ):
-        super().__init__(name, system_prompt, role)
+        super().__init__(name, role, system_prompt)
 
         # Use provided model name or fall back to config default
         self.model_name = model_name or Config.get_llama_config()["model"]
@@ -52,9 +52,9 @@ class LlamaLLM(LLMInterface):
         try:
             # Build full message using utility function
             full_message = format_conversation_as_string(
+                role=self.role,
                 conversation_history=conversation_history,
                 system_prompt=self.system_prompt,
-                role=self.role,
             )
 
             # Ollama doesn't have native async support in langchain-community

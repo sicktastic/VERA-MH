@@ -21,12 +21,12 @@ class GeminiLLM(JudgeLLM):
     def __init__(
         self,
         name: str,
+        role: Role,
         system_prompt: Optional[str] = None,
         model_name: Optional[str] = None,
-        role: Optional[Role] = None,
         **kwargs,
     ):
-        super().__init__(name, system_prompt, role)
+        super().__init__(name, role, system_prompt)
 
         if not Config.GOOGLE_API_KEY:
             raise ValueError("GOOGLE_API_KEY not found in environment variables")
@@ -80,7 +80,7 @@ class GeminiLLM(JudgeLLM):
             messages.append(SystemMessage(content=self.system_prompt))
 
         # Build messages from history
-        messages.extend(build_langchain_messages(conversation_history, self.role))
+        messages.extend(build_langchain_messages(self.role, conversation_history))
 
         # Debug: Print messages being sent to LLM
         debug_print(f"\n[DEBUG {self.name}] Messages sent to LLM:")

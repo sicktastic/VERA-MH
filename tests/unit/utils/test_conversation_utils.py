@@ -15,7 +15,10 @@ class TestBuildLangchainMessages:
     def test_build_messages_with_no_history(self):
         """Test with only current message, no history."""
         messages = build_langchain_messages(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Hello"}]
+            role=Role.PROVIDER,
+            conversation_history=[
+                {"turn": 0, "speaker": "system", "response": "Hello", "role": "system"}
+            ],
         )
 
         assert len(messages) == 1
@@ -25,7 +28,10 @@ class TestBuildLangchainMessages:
     def test_build_messages_with_empty_history(self):
         """Test with empty history list."""
         messages = build_langchain_messages(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Hello"}]
+            role=Role.PROVIDER,
+            conversation_history=[
+                {"turn": 0, "speaker": "system", "response": "Hello", "role": "system"}
+            ],
         )
 
         assert len(messages) == 1
@@ -39,18 +45,21 @@ class TestBuildLangchainMessages:
             {
                 "turn": 1,
                 "speaker": "g gpt4o Alice",  # Custom persona name
+                "role": "persona",
                 "input": "Start",
                 "response": "Hi, I'm Alice",
             },
             {
                 "turn": 2,
                 "speaker": "therapist-bot",  # Custom agent name
+                "role": "provider",
                 "input": "Hi, I'm Alice",
                 "response": "Hello Alice, how are you?",
             },
             {
                 "turn": 3,
                 "speaker": "g gpt4o Alice",  # Custom persona name
+                "role": "persona",
                 "input": "Hello Alice, how are you?",
                 "response": "I'm doing well",
             },
@@ -61,12 +70,15 @@ class TestBuildLangchainMessages:
             {
                 "turn": 4,
                 "speaker": "therapist-bot",
+                "role": "provider",
                 "input": "I'm doing well",
                 "response": "How can I help?",
             }
         )
 
-        messages = build_langchain_messages(conversation_history=history)
+        messages = build_langchain_messages(
+            role=Role.PROVIDER, conversation_history=history
+        )
 
         # Should have 4 history messages
         assert len(messages) == 4
@@ -93,24 +105,29 @@ class TestBuildLangchainMessages:
             {
                 "turn": 1,
                 "speaker": "persona",
+                "role": "persona",
                 "input": "Start",
                 "response": "Hello",
             },
             {
                 "turn": 2,
                 "speaker": "chatbot",
+                "role": "provider",
                 "input": "Hello",
                 "response": "Hi there",
             },
             {
                 "turn": 3,
                 "speaker": "persona",
+                "role": "persona",
                 "input": "Hi there",
                 "response": "How are you?",
             },
         ]
 
-        messages = build_langchain_messages(conversation_history=history)
+        messages = build_langchain_messages(
+            role=Role.PROVIDER, conversation_history=history
+        )
 
         assert len(messages) == 3
         assert isinstance(messages[0], HumanMessage)
@@ -120,11 +137,18 @@ class TestBuildLangchainMessages:
     def test_build_messages_long_conversation(self):
         """Test with longer conversation to verify turn alternation."""
         history = [
-            {"turn": i + 1, "speaker": f"speaker_{i}", "response": f"Message {i + 1}"}
+            {
+                "turn": i + 1,
+                "speaker": f"speaker_{i}",
+                "response": f"Message {i + 1}",
+                "role": "persona" if i % 2 == 0 else "provider",
+            }
             for i in range(10)
         ]
 
-        messages = build_langchain_messages(conversation_history=history)
+        messages = build_langchain_messages(
+            role=Role.PROVIDER, conversation_history=history
+        )
 
         assert len(messages) == 10
 
@@ -140,11 +164,13 @@ class TestBuildLangchainMessages:
     def test_build_messages_no_current_message(self):
         """Test with history but no current message."""
         history = [
-            {"turn": 1, "speaker": "persona", "response": "Hello"},
-            {"turn": 2, "speaker": "agent", "response": "Hi"},
+            {"turn": 1, "speaker": "persona", "response": "Hello", "role": "persona"},
+            {"turn": 2, "speaker": "agent", "response": "Hi", "role": "provider"},
         ]
 
-        messages = build_langchain_messages(conversation_history=history)
+        messages = build_langchain_messages(
+            role=Role.PROVIDER, conversation_history=history
+        )
 
         assert len(messages) == 2
         assert isinstance(messages[0], HumanMessage)
@@ -152,7 +178,9 @@ class TestBuildLangchainMessages:
 
     def test_build_messages_empty_inputs(self):
         """Test with all empty inputs."""
-        messages = build_langchain_messages(conversation_history=None)
+        messages = build_langchain_messages(
+            role=Role.PERSONA, conversation_history=None
+        )
 
         assert len(messages) == 0
 
@@ -162,11 +190,24 @@ class TestBuildLangchainMessages:
         unicode_text = "Hello 🌍 世界"
 
         history = [
-            {"turn": 1, "speaker": "custom_persona", "response": multiline_text},
-            {"turn": 2, "speaker": "custom_agent", "response": unicode_text},
+            {
+                "turn": 1,
+                "speaker": "custom_persona",
+                "response": multiline_text,
+                "role": "persona",
+            },
+            {
+                "turn": 2,
+                "speaker": "custom_agent",
+                "response": unicode_text,
+                "role": "provider",
+            },
         ]
 
-        messages = build_langchain_messages(conversation_history=history)
+        messages = build_langchain_messages(
+            role=Role.PERSONA,
+            conversation_history=history,
+        )
 
         assert messages[0].content == multiline_text
         assert messages[1].content == unicode_text
@@ -174,12 +215,24 @@ class TestBuildLangchainMessages:
     def test_build_messages_skips_none_response(self):
         """Test that turns with None response are skipped."""
         history = [
-            {"turn": 1, "speaker": "persona", "response": "Hello"},
-            {"turn": 2, "speaker": "agent", "response": None},  # Should be skipped
-            {"turn": 3, "speaker": "persona", "response": "Are you there?"},
+            {"turn": 1, "speaker": "persona", "response": "Hello", "role": "persona"},
+            {
+                "turn": 2,
+                "speaker": "agent",
+                "response": None,
+                "role": "provider",
+            },  # Should be skipped
+            {
+                "turn": 3,
+                "speaker": "persona",
+                "response": "Are you there?",
+                "role": "persona",
+            },
         ]
 
-        messages = build_langchain_messages(conversation_history=history)
+        messages = build_langchain_messages(
+            role=Role.PROVIDER, conversation_history=history
+        )
 
         # Should only have 2 messages (turn 2 skipped)
         assert len(messages) == 2
@@ -220,7 +273,8 @@ class TestBuildLangchainMessages:
         ]
 
         messages = build_langchain_messages(
-            conversation_history=history, role=Role.PERSONA
+            role=Role.PERSONA,
+            conversation_history=history,
         )
 
         assert len(messages) == 4  # 4 history messages
@@ -256,7 +310,8 @@ class TestBuildLangchainMessages:
         ]
 
         messages = build_langchain_messages(
-            conversation_history=history, role=Role.PROVIDER
+            role=Role.PROVIDER,
+            conversation_history=history,
         )
 
         assert len(messages) == 3
@@ -278,7 +333,8 @@ class TestBuildLangchainMessages:
         ]
 
         messages = build_langchain_messages(
-            conversation_history=history, role=Role.PERSONA
+            role=Role.PERSONA,
+            conversation_history=history,
         )
 
         assert len(messages) == 3  # turn 0 + 2 history messages
@@ -323,7 +379,8 @@ class TestBuildLangchainMessages:
         ]
 
         messages = build_langchain_messages(
-            conversation_history=history, role=Role.PROVIDER
+            role=Role.PROVIDER,
+            conversation_history=history,
         )
 
         assert len(messages) == 4
@@ -369,7 +426,8 @@ class TestBuildLangchainMessages:
         ]
 
         messages = build_langchain_messages(
-            conversation_history=history, role=Role.PERSONA
+            role=Role.PERSONA,
+            conversation_history=history,
         )
 
         assert len(messages) == 4
@@ -403,7 +461,8 @@ class TestBuildLangchainMessages:
         ]
 
         messages = build_langchain_messages(
-            conversation_history=history, role=Role.PROVIDER
+            role=Role.PROVIDER,
+            conversation_history=history,
         )
 
         assert len(messages) == 3  # turn 0 + 2 history messages
@@ -436,7 +495,8 @@ class TestBuildLangchainMessages:
         ]
 
         messages = build_langchain_messages(
-            conversation_history=history, role=Role.PERSONA
+            role=Role.PERSONA,
+            conversation_history=history,
         )
 
         assert len(messages) == 3  # turn 0 + 2 history messages
@@ -457,7 +517,10 @@ class TestFormatConversationAsString:
     def test_format_with_no_history(self):
         """Test with only current message, no history."""
         result = format_conversation_as_string(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Hello"}]
+            role=Role.PROVIDER,
+            conversation_history=[
+                {"turn": 0, "speaker": "system", "response": "Hello"}
+            ],
         )
 
         assert result == "Human: Hello\n\nAssistant:"
@@ -465,6 +528,7 @@ class TestFormatConversationAsString:
     def test_format_with_system_prompt(self):
         """Test with system prompt."""
         result = format_conversation_as_string(
+            role=Role.PERSONA,
             conversation_history=[
                 {"turn": 0, "speaker": "system", "response": "Hello"}
             ],
@@ -476,13 +540,25 @@ class TestFormatConversationAsString:
     def test_format_with_conversation_history(self):
         """Test with conversation history."""
         history = [
-            {"turn": 1, "speaker": "persona", "response": "Hi"},
-            {"turn": 2, "speaker": "agent", "response": "Hello"},
-            {"turn": 3, "speaker": "persona", "response": "How are you?"},
-            {"turn": 4, "speaker": "agent", "response": "What's your name?"},
+            {"turn": 1, "speaker": "persona", "response": "Hi", "role": "persona"},
+            {"turn": 2, "speaker": "agent", "response": "Hello", "role": "provider"},
+            {
+                "turn": 3,
+                "speaker": "persona",
+                "response": "How are you?",
+                "role": "persona",
+            },
+            {
+                "turn": 4,
+                "speaker": "agent",
+                "response": "What's your name?",
+                "role": "provider",
+            },
         ]
 
-        result = format_conversation_as_string(conversation_history=history)
+        result = format_conversation_as_string(
+            role=Role.PROVIDER, conversation_history=history
+        )
 
         expected = (
             "Human: Hi\n\n"
@@ -496,13 +572,28 @@ class TestFormatConversationAsString:
     def test_format_with_system_prompt_and_history(self):
         """Test with both system prompt and history."""
         history = [
-            {"turn": 1, "speaker": "custom_persona", "response": "Hello"},
-            {"turn": 2, "speaker": "custom_agent", "response": "Hi there"},
-            {"turn": 3, "speaker": "custom_persona", "response": "Tell me more"},
+            {
+                "turn": 1,
+                "speaker": "custom_persona",
+                "role": "persona",
+                "response": "Hello",
+            },
+            {
+                "turn": 2,
+                "speaker": "custom_agent",
+                "role": "provider",
+                "response": "Hi there",
+            },
+            {
+                "turn": 3,
+                "speaker": "custom_persona",
+                "role": "persona",
+                "response": "Tell me more",
+            },
         ]
 
         result = format_conversation_as_string(
-            conversation_history=history, system_prompt="Be concise"
+            role=Role.PROVIDER, conversation_history=history, system_prompt="Be concise"
         )
 
         expected = (
@@ -517,11 +608,13 @@ class TestFormatConversationAsString:
     def test_format_without_current_message(self):
         """Test with history but no current message."""
         history = [
-            {"turn": 1, "speaker": "persona", "response": "Hello"},
-            {"turn": 2, "speaker": "agent", "response": "Hi"},
+            {"turn": 1, "speaker": "persona", "role": "persona", "response": "Hello"},
+            {"turn": 2, "speaker": "agent", "role": "provider", "response": "Hi"},
         ]
 
-        result = format_conversation_as_string(conversation_history=history)
+        result = format_conversation_as_string(
+            role=Role.PROVIDER, conversation_history=history
+        )
 
         expected = "Human: Hello\n\nAssistant: Hi\n\nAssistant:"
         assert result == expected
@@ -529,12 +622,19 @@ class TestFormatConversationAsString:
     def test_format_skips_none_response(self):
         """Test that turns with None response are skipped."""
         history = [
-            {"turn": 1, "speaker": "persona", "response": "Hello"},
-            {"turn": 2, "speaker": "agent", "response": None},
-            {"turn": 3, "speaker": "persona", "response": "Still there?"},
+            {"turn": 1, "speaker": "persona", "role": "persona", "response": "Hello"},
+            {"turn": 2, "speaker": "agent", "role": "provider", "response": None},
+            {
+                "turn": 3,
+                "speaker": "persona",
+                "role": "persona",
+                "response": "Still there?",
+            },
         ]
 
-        result = format_conversation_as_string(conversation_history=history)
+        result = format_conversation_as_string(
+            role=Role.PROVIDER, conversation_history=history
+        )
 
         # Turn 2 should be skipped
         expected = "Human: Hello\n\nHuman: Still there?\n\nAssistant:"
@@ -543,7 +643,7 @@ class TestFormatConversationAsString:
     def test_format_empty_inputs(self):
         """Test with all empty inputs."""
         result = format_conversation_as_string(
-            conversation_history=None, system_prompt=None
+            role=Role.PERSONA, conversation_history=None, system_prompt=None
         )
 
         assert result == ""
@@ -568,9 +668,9 @@ class TestFormatConversationAsString:
         ]
 
         result = format_conversation_as_string(
+            role=Role.PERSONA,
             conversation_history=history,
             system_prompt=persona_system_prompt,
-            role=Role.PERSONA,
         )
 
         # When persona role, persona messages should be Assistant (what "I" said),

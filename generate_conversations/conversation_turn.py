@@ -86,8 +86,6 @@ class ConversationTurn:
         else:  # chatbot/agent
             message = AIMessage(content=data["response"])
 
-        # Extract role if present, otherwise infer from speaker (backward compatibility)
-        role = None
         if "role" in data:
             try:
                 role = Role(data["role"])
@@ -97,10 +95,20 @@ class ConversationTurn:
                     role = Role.PERSONA
                 elif speaker in ("chatbot", "agent"):
                     role = Role.PROVIDER
+                elif speaker == "system":
+                    role = Role.SYSTEM
+                elif speaker == "judge":
+                    role = Role.JUDGE
+                else:
+                    raise ValueError(f"Invalid speaker: {speaker}")
         elif speaker == "persona":
             role = Role.PERSONA
         elif speaker in ("chatbot", "agent"):
             role = Role.PROVIDER
+        elif speaker == "system":
+            role = Role.SYSTEM
+        elif speaker == "judge":
+            role = Role.JUDGE
         else:
             raise ValueError(f"Invalid speaker: {speaker}")
 

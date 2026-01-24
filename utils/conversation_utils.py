@@ -108,8 +108,8 @@ def build_persona_role_reminder() -> str:
 
 
 def build_langchain_messages(
+    role: Role,
     conversation_history: Optional[List[Dict[str, Any]]] = None,
-    role: Optional[Role] = None,
 ) -> List[BaseMessage]:
     """
     Build a list of LangChain messages from conversation history for the given role.
@@ -149,7 +149,7 @@ def build_langchain_messages(
 
             # Determine message type based on role comparison
             # If we have role information, use it directly
-            if message_role is not None and role is not None:
+            if message_role is not None:
                 try:
                     turn_role = (
                         Role(message_role)
@@ -164,15 +164,12 @@ def build_langchain_messages(
                     else:
                         message = HumanMessage(content=text)
                 except (ValueError, TypeError):
-                    # Invalid role value, fall back to backward compatibility
-                    debug_print(
-                        f"  Warning: Invalid role value '{message_role}', "
-                        "using backward compatibility"
+                    raise ValueError(
+                        f"Invalid role value '{message_role}' "
+                        f"for turn {turn_number}"
                     )
-                    message = _determine_message_type_fallback(turn_number, text, role)
             else:
-                # Backward compatibility: use turn number logic if role is not available
-                message = _determine_message_type_fallback(turn_number, text, role)
+                raise ValueError(f"Role is not provided for turn {turn_number}")
 
             msg_type = type(message).__name__
             preview = text[:50] + "..." if len(text) > 50 else text
@@ -182,43 +179,10 @@ def build_langchain_messages(
     return messages
 
 
-def _determine_message_type_fallback(
-    turn_number: int, text: str, role: Optional[Role]
-) -> BaseMessage:
-    """
-    Fallback method to determine message type using turn number logic.
-
-    This is used for backward compatibility when role information is not
-    available.
-
-    Args:
-        turn_number: The turn number (1-indexed)
-        text: The message content
-        role: The role of the requesting LLM
-
-    Returns:
-        AIMessage or HumanMessage
-    """
-    # Persona speaks on odd turns (1, 3, 5...), provider on even (2, 4, 6...)
-    is_persona_turn = turn_number % 2 == 1
-
-    # Flip message types when LLM is playing persona role
-    if role == Role.PERSONA:
-        # Persona responses are AIMessage, provider inputs are HumanMessage
-        return (
-            AIMessage(content=text) if is_persona_turn else HumanMessage(content=text)
-        )
-    else:
-        # Persona inputs are HumanMessage, provider responses are AIMessage
-        return (
-            HumanMessage(content=text) if is_persona_turn else AIMessage(content=text)
-        )
-
-
 def format_conversation_as_string(
+    role: Role,
     conversation_history: Optional[List[Dict[str, Any]]] = None,
     system_prompt: Optional[str] = None,
-    role: Optional[Role] = None,
 ) -> str:
     """
     Format conversation history as a string for string-based LLMs (e.g., Ollama).
@@ -227,9 +191,9 @@ def format_conversation_as_string(
     a string format with Human/Assistant labels.
 
     Args:
+        role: Optional role of the LLM (Role.PERSONA, Role.PROVIDER, or None)
         conversation_history: Optional list of previous conversation turns
         system_prompt: Optional system prompt to prepend
-        role: Optional role of the LLM (Role.PERSONA, Role.PROVIDER, or None)
 
     Returns:
         Formatted string with System, Human, and Assistant labels
@@ -241,7 +205,7 @@ def format_conversation_as_string(
         full_message = f"System: {system_prompt}\n\n"
 
     # Build LangChain messages using existing utility
-    messages = build_langchain_messages(conversation_history, role)
+    messages = build_langchain_messages(role, conversation_history)
 
     # Convert messages to string format
     for message in messages:

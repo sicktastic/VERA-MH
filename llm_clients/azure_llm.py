@@ -8,6 +8,7 @@ from langchain_azure_ai.chat_models import AzureAIChatCompletionsModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
+from llm_clients import Role
 from utils.conversation_utils import build_langchain_messages
 from utils.debug import debug_print
 
@@ -26,11 +27,12 @@ class AzureLLM(JudgeLLM):
     def __init__(
         self,
         name: str,
+        role: Role,
         system_prompt: Optional[str] = None,
         model_name: Optional[str] = None,
         **kwargs,
     ):
-        super().__init__(name, system_prompt)
+        super().__init__(name, role, system_prompt)
 
         if not Config.AZURE_API_KEY:
             raise ValueError("AZURE_API_KEY not found in environment variables")
@@ -142,9 +144,7 @@ class AzureLLM(JudgeLLM):
 
         # Build messages from history
         # Role reminder is automatically added for personas by build_langchain_messages
-        messages.extend(
-            build_langchain_messages(conversation_history, self.system_prompt)
-        )
+        messages.extend(build_langchain_messages(self.role, conversation_history))
 
         # Debug: Print messages being sent to LLM
         debug_print(f"\n[DEBUG {self.name}] Messages sent to LLM:")

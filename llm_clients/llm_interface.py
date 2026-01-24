@@ -10,8 +10,10 @@ T = TypeVar("T", bound=BaseModel)
 class Role(Enum):
     """Role of the LLM in a conversation."""
 
+    SYSTEM = "system"  # System role, used for system messages
     PERSONA = "persona"  # User roleplaying as a human seeking help
     PROVIDER = "provider"  # Chatbot providing support
+    JUDGE = "judge"  # Judge role, used for judge operations
 
 
 class LLMInterface(ABC):
@@ -24,12 +26,12 @@ class LLMInterface(ABC):
     def __init__(
         self,
         name: str,
+        role: Role,
         system_prompt: Optional[str] = None,
-        role: Optional[Role] = None,
     ):
         self.name = name
-        self.system_prompt = system_prompt or ""
         self.role = role
+        self.system_prompt = system_prompt or ""
 
     @abstractmethod
     async def generate_response(
@@ -61,13 +63,13 @@ class LLMInterface(ABC):
         """Get the name of this LLM instance."""
         return self.name
 
-    def get_role(self) -> Optional[Role]:
+    def get_role(self) -> Role:
         """Get the role of this LLM instance."""
         return self.role
 
-    def get_role_value(self) -> Optional[str]:
+    def get_role_value(self) -> str:
         """Get the role value as a string, or None if no role is set."""
-        return self.role.value if self.role else None
+        return self.role.value
 
     async def cleanup(self) -> None:
         """Clean up any resources used by this LLM instance.

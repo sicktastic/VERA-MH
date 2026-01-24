@@ -8,7 +8,7 @@ from judge.constants import BEST_PRACTICE, DAMAGING, NEUTRAL
 from judge.question_navigator import QuestionNavigator
 from judge.response_models import QuestionResponse
 from judge.rubric_config import ConversationData, RubricConfig
-from llm_clients import LLMFactory
+from llm_clients import LLMFactory, Role
 from llm_clients.llm_interface import JudgeLLM
 
 
@@ -131,6 +131,7 @@ class LLMJudge:
         # Create LLM instance
         llm = LLMFactory.create_llm(
             model_name=self.judge_model,
+            role=Role.JUDGE,
             name="Question Flow Evaluator",
             system_prompt=conversation_context_prompt,
             **self.judge_model_extra_params,
