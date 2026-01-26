@@ -240,3 +240,128 @@ class TestLLMFactory:
             assert isinstance(gemini_llm, GeminiLLM)
             assert isinstance(ollama_llm, OllamaLLM)
             assert isinstance(azure_llm, AzureLLM)
+
+    @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
+    def test_create_judge_llm_claude(self):
+        """Test that create_judge_llm correctly creates Claude JudgeLLM instance."""
+        from llm_clients.llm_interface import JudgeLLM
+
+        model_name = "claude-sonnet-4-5-20250929"
+        name = "TestClaudeJudge"
+        system_prompt = "You are a helpful judge."
+
+        llm = LLMFactory.create_judge_llm(
+            model_name=model_name, name=name, system_prompt=system_prompt
+        )
+
+        assert isinstance(llm, JudgeLLM)
+        assert isinstance(llm, ClaudeLLM)
+        assert llm.name == name
+        assert llm.system_prompt == system_prompt
+        assert llm.model_name == model_name
+
+    @patch("llm_clients.openai_llm.Config.OPENAI_API_KEY", "test-key")
+    def test_create_judge_llm_openai(self):
+        """Test that create_judge_llm correctly creates OpenAI JudgeLLM instance."""
+        from llm_clients.llm_interface import JudgeLLM
+
+        model_name = "gpt-4"
+        name = "TestGPTJudge"
+        system_prompt = "You are a test judge."
+
+        llm = LLMFactory.create_judge_llm(
+            model_name=model_name, name=name, system_prompt=system_prompt
+        )
+
+        assert isinstance(llm, JudgeLLM)
+        assert isinstance(llm, OpenAILLM)
+        assert llm.name == name
+        assert llm.system_prompt == system_prompt
+        assert llm.model_name == model_name
+
+    @patch("llm_clients.gemini_llm.Config.GOOGLE_API_KEY", "test-key")
+    def test_create_judge_llm_gemini(self):
+        """Test that create_judge_llm correctly creates Gemini JudgeLLM instance."""
+        from llm_clients.llm_interface import JudgeLLM
+
+        model_name = "gemini-pro"
+        name = "TestGeminiJudge"
+        system_prompt = "You are a Gemini judge."
+
+        llm = LLMFactory.create_judge_llm(
+            model_name=model_name, name=name, system_prompt=system_prompt
+        )
+
+        assert isinstance(llm, JudgeLLM)
+        assert isinstance(llm, GeminiLLM)
+        assert llm.name == name
+        assert llm.system_prompt == system_prompt
+        assert llm.model_name == model_name
+
+    def test_create_judge_llm_azure(self, mock_azure_config):
+        """Test that create_judge_llm correctly creates Azure JudgeLLM instance."""
+        from llm_clients.llm_interface import JudgeLLM
+
+        model_name = "azure-grok-4"
+        name = "TestAzureJudge"
+        system_prompt = "You are an Azure judge."
+
+        llm = LLMFactory.create_judge_llm(
+            model_name=model_name, name=name, system_prompt=system_prompt
+        )
+
+        assert isinstance(llm, JudgeLLM)
+        assert isinstance(llm, AzureLLM)
+        assert llm.name == name
+        assert llm.system_prompt == system_prompt
+        assert llm.model_name == "grok-4"  # azure- prefix should be removed
+
+    def test_create_judge_llm_ollama_raises_error(self):
+        """Test that create_judge_llm raises ValueError for Ollama models."""
+        model_name = "ollama-llama-3"
+        name = "TestOllamaJudge"
+
+        with pytest.raises(ValueError) as exc_info:
+            LLMFactory.create_judge_llm(model_name=model_name, name=name)
+
+        assert "does not support structured output" in str(exc_info.value)
+        assert model_name in str(exc_info.value)
+        assert "Ollama" in str(exc_info.value)
+
+    @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
+    @patch("llm_clients.claude_llm.ChatAnthropic")
+    def test_create_judge_llm_passes_kwargs(self, mock_chat_anthropic):
+        """Test that create_judge_llm forwards kwargs to LLM implementations."""
+        from llm_clients.llm_interface import JudgeLLM
+
+        model_name = "claude-sonnet-4-5-20250929"
+        name = "TestKwargsJudge"
+        temperature = 0.5
+        max_tokens = 500
+
+        llm = LLMFactory.create_judge_llm(
+            model_name=model_name,
+            name=name,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+        assert isinstance(llm, JudgeLLM)
+        assert isinstance(llm, ClaudeLLM)
+        # Verify kwargs were passed to underlying LangChain model
+        mock_chat_anthropic.assert_called_once()
+        call_kwargs = mock_chat_anthropic.call_args[1]
+        assert call_kwargs["temperature"] == temperature
+        assert call_kwargs["max_tokens"] == max_tokens
+
+    def test_create_judge_llm_unsupported_model_raises_error(self):
+        """Test that create_judge_llm raises ValueError for unsupported model names."""
+        unsupported_model = "unknown-model-xyz"
+        name = "TestUnsupportedJudge"
+
+        with pytest.raises(ValueError) as exc_info:
+            LLMFactory.create_judge_llm(model_name=unsupported_model, name=name)
+
+        # Should raise error from create_llm first
+        assert "Unsupported model" in str(exc_info.value)
+        assert unsupported_model in str(exc_info.value)
