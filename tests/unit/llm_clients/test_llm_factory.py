@@ -5,8 +5,8 @@ import pytest
 from llm_clients.azure_llm import AzureLLM
 from llm_clients.claude_llm import ClaudeLLM
 from llm_clients.gemini_llm import GeminiLLM
-from llm_clients.llama_llm import LlamaLLM
 from llm_clients.llm_factory import LLMFactory
+from llm_clients.ollama_llm import OllamaLLM
 from llm_clients.openai_llm import OpenAILLM
 
 
@@ -96,20 +96,21 @@ class TestLLMFactory:
         assert llm.system_prompt == system_prompt
         assert llm.model_name == model_name
 
-    def test_create_llama_llm(self):
-        """Test that factory correctly creates Llama LLM instance."""
-        model_name = "llama-3.1"
-        name = "TestLlama"
-        system_prompt = "You are a Llama assistant."
+    def test_create_ollama_llm(self):
+        """Test that factory correctly creates Ollama LLM instance."""
+        model_name = "ollama-llama-3"
+        expected_model_name = "llama-3"
+        name = "TestOllama"
+        system_prompt = "You are a Ollama assistant."
 
         llm = LLMFactory.create_llm(
             model_name=model_name, name=name, system_prompt=system_prompt
         )
 
-        assert isinstance(llm, LlamaLLM)
+        assert isinstance(llm, OllamaLLM)
         assert llm.name == name
         assert llm.system_prompt == system_prompt
-        assert llm.model_name == model_name
+        assert llm.model_name == expected_model_name
 
     def test_create_azure_llm(self, mock_azure_config):
         """Test that factory correctly creates Azure LLM instance."""
@@ -212,14 +213,15 @@ class TestLLMFactory:
         assert llm.model_name == model_name
 
     def test_create_llama_llm_with_ollama_prefix(self):
-        """Test that factory correctly identifies Llama models with 'ollama' prefix."""
+        """Test that factory correctly identifies Ollama models with 'ollama' prefix."""
         model_name = "ollama-llama-3"
+        expected_model_name = "llama-3"
         name = "TestOllamaPrefix"
 
         llm = LLMFactory.create_llm(model_name=model_name, name=name)
 
-        assert isinstance(llm, LlamaLLM)
-        assert llm.model_name == model_name
+        assert isinstance(llm, OllamaLLM)
+        assert llm.model_name == expected_model_name
 
     def test_factory_case_insensitive_model_detection(self, mock_all_api_keys):
         """Test that factory detects models regardless of case."""
@@ -230,11 +232,11 @@ class TestLLMFactory:
             claude_llm = LLMFactory.create_llm(model_name="CLAUDE-3-5", name="Claude")
             gpt_llm = LLMFactory.create_llm(model_name="GPT-4-TURBO", name="GPT")
             gemini_llm = LLMFactory.create_llm(model_name="GEMINI-PRO", name="Gemini")
-            llama_llm = LLMFactory.create_llm(model_name="LLAMA-3", name="Llama")
+            ollama_llm = LLMFactory.create_llm(model_name="OLLAMA-LLAMA", name="Ollama")
             azure_llm = LLMFactory.create_llm(model_name="AZURE-GROK-4", name="Azure")
 
             assert isinstance(claude_llm, ClaudeLLM)
             assert isinstance(gpt_llm, OpenAILLM)
             assert isinstance(gemini_llm, GeminiLLM)
-            assert isinstance(llama_llm, LlamaLLM)
+            assert isinstance(ollama_llm, OllamaLLM)
             assert isinstance(azure_llm, AzureLLM)

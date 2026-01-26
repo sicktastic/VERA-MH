@@ -80,7 +80,7 @@ class JudgeLLM(LLMInterface):
     for reliable evaluation results.
 
     Implementations: Claude, OpenAI, Gemini, Azure
-    Not supported by: Llama (via Ollama)
+    Not supported by: Ollama
     """
 
     @abstractmethod
