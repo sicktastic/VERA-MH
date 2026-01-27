@@ -3,6 +3,7 @@
 from langchain_core.messages import AIMessage, HumanMessage
 
 from generate_conversations.conversation_turn import ConversationTurn
+from llm_clients import Role
 
 
 class TestConversationTurnCreation:
@@ -156,6 +157,7 @@ class TestConversationTurnFromDict:
         data = {
             "turn": 1,
             "speaker": "persona",
+            "role": Role.PERSONA,
             "input": "Start",
             "response": "Hello world",
             "early_termination": False,
@@ -178,6 +180,7 @@ class TestConversationTurnFromDict:
         data = {
             "turn": 2,
             "speaker": "agent",
+            "role": Role.PROVIDER,
             "input": "Hello world",
             "response": "Hi there!",
             "early_termination": False,
@@ -195,6 +198,7 @@ class TestConversationTurnFromDict:
         data = {
             "turn": 3,
             "speaker": "chatbot",
+            "role": Role.PROVIDER,
             "input": "Question",
             "response": "Answer",
             "early_termination": True,
@@ -212,6 +216,7 @@ class TestConversationTurnFromDict:
         data = {
             "turn": 1,
             "speaker": "persona",
+            "role": Role.PERSONA,
             "input": "",
             "response": "Test",
         }
@@ -227,6 +232,7 @@ class TestConversationTurnFromDict:
         original_turn = ConversationTurn(
             turn=5,
             speaker="persona",
+            role=Role.PERSONA,
             input_message="Original input",
             message=original_message,
             early_termination=True,
@@ -276,7 +282,11 @@ class TestConversationTurnEdgeCases:
         unicode_text = "Hello 🌍 世界 مرحبا"
         message = AIMessage(content=unicode_text)
         turn = ConversationTurn(
-            turn=1, speaker="agent", input_message="Say hello", message=message
+            turn=1,
+            speaker="agent",
+            role=Role.PROVIDER,
+            input_message="Say hello",
+            message=message,
         )
 
         assert turn.response == unicode_text

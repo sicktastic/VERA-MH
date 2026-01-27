@@ -90,27 +90,11 @@ class ConversationTurn:
             try:
                 role = Role(data["role"])
             except ValueError:
-                # Fall back to inferring role from speaker if role string is invalid
-                if speaker == "persona":
-                    role = Role.PERSONA
-                elif speaker in ("chatbot", "agent"):
-                    role = Role.PROVIDER
-                elif speaker == "system":
-                    role = Role.SYSTEM
-                elif speaker == "judge":
-                    role = Role.JUDGE
-                else:
-                    raise ValueError(f"Invalid speaker: {speaker}")
-        elif speaker == "persona":
-            role = Role.PERSONA
-        elif speaker in ("chatbot", "agent"):
-            role = Role.PROVIDER
-        elif speaker == "system":
-            role = Role.SYSTEM
-        elif speaker == "judge":
-            role = Role.JUDGE
+                raise ValueError(
+                    f"Invalid role '{data['role']}' " f"for speaker '{speaker}'"
+                )
         else:
-            raise ValueError(f"Invalid speaker: {speaker}")
+            raise ValueError(f"Role is not provided for speaker '{speaker}'")
 
         return cls(
             turn=data["turn"],

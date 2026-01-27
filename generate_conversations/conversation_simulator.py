@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 from langchain_core.messages import AIMessage, HumanMessage
 
 from generate_conversations.conversation_turn import ConversationTurn
-from llm_clients import LLMInterface, Role
+from llm_clients import LLMInterface
 from utils.conversation_utils import save_conversation_to_file
 
 
@@ -77,7 +77,7 @@ class ConversationSimulator:
                     "turn": 0,
                     "speaker": "system",
                     "response": initial_message,
-                    "role": Role.SYSTEM,
+                    "role": None,
                 }
                 history_dicts = [initial_turn]
             else:

@@ -10,7 +10,6 @@ T = TypeVar("T", bound=BaseModel)
 class Role(Enum):
     """Role of the LLM in a conversation."""
 
-    SYSTEM = "system"  # System role, used for system messages
     PERSONA = "persona"  # User roleplaying as a human seeking help
     PROVIDER = "provider"  # Chatbot providing support
     JUDGE = "judge"  # Judge role, used for judge operations
