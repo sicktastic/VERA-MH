@@ -72,7 +72,7 @@ class Config:
     def get_ollama_config(cls) -> Dict[str, Any]:
         """Get default Ollama configuration.
 
-        Returns model name. Runtime parameters (temperature, max_tokens)
+        Returns model name and base_url. Runtime parameters (temperature, max_tokens)
         should be passed explicitly via CLI arguments. This is a general config
         for any Ollama-hosted model (llama, phi4, mistral, etc.).
         """
