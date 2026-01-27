@@ -45,16 +45,22 @@ class OllamaLLM(LLMInterface):
 
         # Store max_tokens if provided (for logging), but map to num_predict for Ollama
         # Ollama uses 'num_predict' instead of 'max_tokens'
-        if "max_tokens" in kwargs:
+        # If both are provided, num_predict takes precedence
+        if "num_predict" in kwargs:
+            llm_params["num_predict"] = kwargs.pop("num_predict")
+            self.max_tokens = llm_params["num_predict"]
+        elif "max_tokens" in kwargs:
             llm_params["num_predict"] = kwargs.pop("max_tokens")
             self.max_tokens = llm_params["num_predict"]
-        elif "num_predict" in kwargs:
-            self.max_tokens = kwargs.get("num_predict")
         else:
             self.max_tokens = None
 
-        # Store temperature for logging
-        self.temperature = kwargs.get("temperature", None)
+        # Store temperature for logging (if provided)
+        if "temperature" in kwargs:
+            llm_params["temperature"] = kwargs.pop("temperature")
+            self.temperature = llm_params["temperature"]
+        else:
+            self.temperature = None
 
         # Override with any remaining provided kwargs
         llm_params.update(kwargs)
