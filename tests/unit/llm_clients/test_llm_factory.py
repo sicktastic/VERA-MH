@@ -101,7 +101,7 @@ class TestLLMFactory:
         model_name = "ollama-llama-3"
         expected_model_name = "llama-3"
         name = "TestOllama"
-        system_prompt = "You are a Ollama assistant."
+        system_prompt = "You are an Ollama assistant."
 
         llm = LLMFactory.create_llm(
             model_name=model_name, name=name, system_prompt=system_prompt
