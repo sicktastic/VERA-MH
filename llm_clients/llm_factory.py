@@ -74,7 +74,6 @@ class LLMFactory:
     def create_judge_llm(
         model_name: str,
         name: str,
-        role: Role,
         system_prompt: Optional[str] = None,
         **kwargs,
     ) -> JudgeLLM:
@@ -89,7 +88,6 @@ class LLMFactory:
                 (e.g., "claude-sonnet-4-5-20250929", "gpt-4")
             name: Display name for this LLM instance
             system_prompt: Optional system prompt
-            role: Role of the LLM (Role.PERSONA, Role.PROVIDER)
             **kwargs: Additional model-specific parameters
                 (temperature, max_tokens, etc.)
 
@@ -99,7 +97,13 @@ class LLMFactory:
         Raises:
             ValueError: If model doesn't support structured output (e.g., Llama/Ollama)
         """
-        llm = LLMFactory.create_llm(model_name, name, role, system_prompt, **kwargs)
+        llm = LLMFactory.create_llm(
+            model_name=model_name,
+            name=name,
+            role=Role.JUDGE,
+            system_prompt=system_prompt,
+            **kwargs,
+        )
 
         if not isinstance(llm, JudgeLLM):
             raise ValueError(

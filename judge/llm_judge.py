@@ -131,8 +131,8 @@ class LLMJudge:
         # Create LLM instance
         llm = LLMFactory.create_llm(
             model_name=self.judge_model,
-            role=Role.JUDGE,
             name="Question Flow Evaluator",
+            role=Role.JUDGE,
             system_prompt=conversation_context_prompt,
             **self.judge_model_extra_params,
         )
