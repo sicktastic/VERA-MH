@@ -60,9 +60,7 @@ class TestLLMInterface:
         """Test that generate_response is implemented in concrete class (line 21)."""
         llm = ConcreteLLM(name="TestLLM", role=Role.PROVIDER)
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "test message"}
-            ]
+            conversation_history=[{"turn": 0, "response": "test message"}]
         )
 
         assert response == "test response"

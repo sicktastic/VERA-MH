@@ -232,9 +232,7 @@ class TestAzureLLM:
             system_prompt="You are a helpful assistant.",
         )
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Hello, Azure!"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Hello, Azure!"}]
         )
 
         assert response == "This is an Azure response"
@@ -269,9 +267,7 @@ class TestAzureLLM:
 
         llm = AzureLLM(name="TestAzure", role=Role.PERSONA)  # No system prompt
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Test message"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Test message"}]
         )
 
         assert response == "Response without system prompt"
@@ -299,7 +295,7 @@ class TestAzureLLM:
 
         llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         assert response == "Response"
@@ -325,7 +321,7 @@ class TestAzureLLM:
 
         llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         assert response == "Response"
@@ -348,9 +344,7 @@ class TestAzureLLM:
 
         llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Test message"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Test message"}]
         )
 
         # Should return error message instead of raising
@@ -390,9 +384,7 @@ class TestAzureLLM:
 
         llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Test message"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Test message"}]
         )
 
         # Should contain helpful error message
@@ -417,7 +409,7 @@ class TestAzureLLM:
 
         llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
         await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         metadata = llm.get_last_response_metadata()
@@ -550,8 +542,7 @@ class TestAzureLLM:
         history = [
             {
                 "turn": 1,
-                "speaker": "persona",
-                "role": Role.PERSONA,
+                "speaker": Role.PERSONA,
                 "input": "Start",
                 "response": "Hello",
                 "early_termination": False,
@@ -559,8 +550,7 @@ class TestAzureLLM:
             },
             {
                 "turn": 2,
-                "speaker": "agent",
-                "role": Role.PROVIDER,
+                "speaker": Role.PROVIDER,
                 "input": "Hello",
                 "response": "Hi there",
                 "early_termination": False,
@@ -591,7 +581,7 @@ class TestAzureLLM:
 
         llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
         await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         metadata = llm.get_last_response_metadata()

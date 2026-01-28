@@ -19,19 +19,17 @@ class ConversationTurn:
 
     Attributes:
         turn: Sequential turn number (1-indexed)
-        speaker: Identifier for the speaker (e.g., "persona", "chatbot", "agent")
+        speaker: Role of the speaker (Role.PERSONA, Role.PROVIDER, or Role.JUDGE)
         input_message: The message that prompted this response
         message: The LangChain message object (HumanMessage or AIMessage)
-        role: Role of the speaker (Role.PERSONA or Role.PROVIDER)
         early_termination: Whether this turn marked the end of conversation
         logging_metadata: Metadata from LLM provider (tokens, timing, etc.)
     """
 
     turn: int
-    speaker: str
+    speaker: Role
     input_message: str
     message: BaseMessage
-    role: Optional[Role] = None
     early_termination: bool = False
     logging_metadata: Optional[Dict[str, Any]] = None
 
@@ -50,58 +48,62 @@ class ConversationTurn:
         return str(content)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to legacy dict format for file export and backward compatibility.
+        """Convert to dict format for file export.
 
         Returns:
             Dictionary with keys: turn, speaker, input, response,
-            role, early_termination, logging
+            early_termination, logging
         """
         result = {
             "turn": self.turn,
-            "speaker": self.speaker,
+            "speaker": self.speaker.value,
             "input": self.input_message,
             "response": self.response,
             "early_termination": self.early_termination,
             "logging": self.logging_metadata or {},
         }
-        # Include role if present
-        if self.role is not None:
-            result["role"] = self.role.value
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ConversationTurn":
-        """Create from legacy dict format.
+    def from_dict(cls, data: Dict[str, Any], for_role: Role) -> "ConversationTurn":
+        """Create from dict format for the given role.
+
+        If the speaker's role matches the requested role,
+        it's an AIMessage (what "I" said) for the requested role.
+        Otherwise, it's a HumanMessage (what "they" said) for the requested role.
 
         Args:
             data: Dictionary with keys: turn, speaker, input, response, etc.
-
+                speaker must be a Role enum value (string) or Role enum.
+            for_role: Role of the speaker to create the ConversationTurn for.
         Returns:
             ConversationTurn instance
         """
-        # Determine message type based on speaker (for backward compatibility)
-        speaker = data["speaker"]
-        if speaker == "persona":
-            message = HumanMessage(content=data["response"])
-        else:  # chatbot/agent
-            message = AIMessage(content=data["response"])
+        # Validate required fields
+        required_fields = ["turn", "speaker", "input", "response"]
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
 
-        if "role" in data:
-            try:
-                role = Role(data["role"])
-            except ValueError:
-                raise ValueError(
-                    f"Invalid role '{data['role']}' " f"for speaker '{speaker}'"
-                )
-        else:
-            raise ValueError(f"Role is not provided for speaker '{speaker}'")
+        turn_speaker = data["speaker"]
+        try:
+            speaker_role = Role(turn_speaker)
+        except ValueError:
+            raise ValueError(f"Invalid role value '{turn_speaker}'")
+
+        # Determine message type based on role
+        # If the speaker's role matches the requested role,
+        # it's an AIMessage (what "I" said).
+        if speaker_role == for_role:
+            message = AIMessage(content=data["response"])
+        else:  # Otherwise, it's a HumanMessage (what "they" said).
+            message = HumanMessage(content=data["response"])
 
         return cls(
             turn=data["turn"],
-            speaker=speaker,
+            speaker=speaker_role,
             input_message=data["input"],
             message=message,
-            role=role,
             early_termination=data.get("early_termination", False),
             logging_metadata=data.get("logging"),
         )

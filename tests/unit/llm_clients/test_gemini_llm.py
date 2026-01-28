@@ -112,9 +112,7 @@ class TestGeminiLLM:
             system_prompt="You are a helpful assistant.",
         )
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Hello, Gemini!"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Hello, Gemini!"}]
         )
 
         assert response == "This is a Gemini response"
@@ -149,9 +147,7 @@ class TestGeminiLLM:
 
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA)  # No system prompt
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Test message"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Test message"}]
         )
 
         assert response == "Response without system prompt"
@@ -185,7 +181,7 @@ class TestGeminiLLM:
 
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         assert response == "Response with fallback"
@@ -212,7 +208,7 @@ class TestGeminiLLM:
 
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         assert response == "Response"
@@ -236,7 +232,7 @@ class TestGeminiLLM:
 
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         assert response == "Response"
@@ -258,9 +254,7 @@ class TestGeminiLLM:
 
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Test message"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Test message"}]
         )
 
         # Should return error message instead of raising
@@ -294,7 +288,7 @@ class TestGeminiLLM:
 
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA)
         await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         metadata = llm.get_last_response_metadata()
@@ -355,7 +349,7 @@ class TestGeminiLLM:
 
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA)
         await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         metadata = llm.get_last_response_metadata()
@@ -379,7 +373,7 @@ class TestGeminiLLM:
 
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA)
         await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         metadata = llm.get_last_response_metadata()
@@ -414,7 +408,7 @@ class TestGeminiLLM:
 
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA)
         await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         metadata = llm.get_last_response_metadata()
@@ -441,7 +435,7 @@ class TestGeminiLLM:
 
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA)
         await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         metadata = llm.get_last_response_metadata()
@@ -476,8 +470,7 @@ class TestGeminiLLM:
         history = [
             {
                 "turn": 1,
-                "speaker": "persona",
-                "role": "persona",
+                "speaker": Role.PERSONA,
                 "input": "Start",
                 "response": "Hello",
                 "early_termination": False,
@@ -485,8 +478,7 @@ class TestGeminiLLM:
             },
             {
                 "turn": 2,
-                "speaker": "agent",
-                "role": "provider",
+                "speaker": Role.PROVIDER,
                 "input": "Hello",
                 "response": "Hi there",
                 "early_termination": False,
@@ -494,8 +486,7 @@ class TestGeminiLLM:
             },
             {
                 "turn": 3,
-                "speaker": "persona",
-                "role": "persona",
+                "speaker": Role.PERSONA,
                 "input": "Hi there",
                 "response": "How are you?",
                 "early_termination": False,
@@ -533,7 +524,7 @@ class TestGeminiLLM:
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA, system_prompt="Test")
 
         response = await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Hi"}]
+            conversation_history=[{"turn": 0, "response": "Hi"}]
         )
 
         assert response == "Response"
@@ -562,7 +553,7 @@ class TestGeminiLLM:
         llm = GeminiLLM(name="TestGemini", role=Role.PERSONA, system_prompt="Test")
 
         response = await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Hi"}]
+            conversation_history=[{"turn": 0, "response": "Hi"}]
         )
 
         assert response == "Response"
@@ -597,18 +588,29 @@ class TestGeminiLLM:
         )
 
         history = [
-            {"turn": 1, "speaker": "persona", "response": "Hello", "role": "persona"},
+            {
+                "turn": 1,
+                "speaker": Role.PERSONA,
+                "input": "",
+                "response": "Hello",
+                "early_termination": False,
+                "logging": {},
+            },
             {
                 "turn": 2,
-                "speaker": "provider",
+                "speaker": Role.PROVIDER,
+                "input": "Hello",
                 "response": "Hi there",
-                "role": "provider",
+                "early_termination": False,
+                "logging": {},
             },
             {
                 "turn": 3,
-                "speaker": "persona",
+                "speaker": Role.PERSONA,
+                "input": "Hi there",
                 "response": "How are you?",
-                "role": "persona",
+                "early_termination": False,
+                "logging": {},
             },
         ]
 

@@ -96,9 +96,7 @@ class TestLlamaLLMGenerateResponse:
 
         llm = LlamaLLM(name="test-llama", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Hello, how are you?"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Hello, how are you?"}]
         )
 
         # Verify message uses Human/Assistant format even without system prompt
@@ -123,9 +121,7 @@ class TestLlamaLLMGenerateResponse:
             system_prompt="You are a helpful assistant",
         )
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "How are you?"}
-            ]
+            conversation_history=[{"turn": 0, "response": "How are you?"}]
         )
 
         # Verify system prompt was included in formatted message
@@ -148,9 +144,7 @@ class TestLlamaLLMGenerateResponse:
         llm = LlamaLLM(name="test-llama", role=Role.PERSONA)
         llm.set_system_prompt("You are a coding expert")
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Help me debug this code"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Help me debug this code"}]
         )
 
         # Verify system prompt was included
@@ -173,9 +167,7 @@ class TestLlamaLLMGenerateResponse:
 
         llm = LlamaLLM(name="test-llama", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Test message"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Test message"}]
         )
 
         # Should return error message, not raise exception
@@ -198,9 +190,7 @@ class TestLlamaLLMGenerateResponse:
             name="test-llama", role=Role.PERSONA, model_name="nonexistent:latest"
         )
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Test message"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Test message"}]
         )
 
         assert "Error generating response" in response
@@ -221,7 +211,6 @@ class TestLlamaLLMGenerateResponse:
             conversation_history=[
                 {
                     "turn": 0,
-                    "speaker": "system",
                     "response": "Long message that times out",
                 }
             ]
@@ -242,7 +231,7 @@ class TestLlamaLLMGenerateResponse:
 
         llm = LlamaLLM(name="test-llama", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": "Test"}]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         assert "Error generating response" in response
@@ -277,7 +266,7 @@ class TestLlamaLLMGenerateResponse:
 
         llm = LlamaLLM(name="test-llama", role=Role.PERSONA)
         response = await llm.generate_response(
-            conversation_history=[{"turn": 0, "speaker": "system", "response": ""}]
+            conversation_history=[{"turn": 0, "response": ""}]
         )
 
         # Empty string gets formatted as "Human: \n\nAssistant:"
@@ -299,9 +288,7 @@ class TestLlamaLLMGenerateResponse:
         multiline_msg = "Line 1\nLine 2\nLine 3"
         llm = LlamaLLM(name="test-llama", role=Role.PERSONA, system_prompt="Helper")
         await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": multiline_msg}
-            ]
+            conversation_history=[{"turn": 0, "response": multiline_msg}]
         )
 
         call_args = mock_instance.invoke.call_args[0][0]
@@ -344,9 +331,7 @@ class TestLlamaLLMSystemPrompt:
 
         # First call without system prompt
         await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Question 1"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Question 1"}]
         )
         call1 = mock_instance.invoke.call_args[0][0]
         assert "System:" not in call1
@@ -357,9 +342,7 @@ class TestLlamaLLMSystemPrompt:
         # Second call with system prompt
         mock_instance.invoke.reset_mock()
         await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Question 2"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Question 2"}]
         )
         call2 = mock_instance.invoke.call_args[0][0]
         assert "System: You are helpful" in call2
@@ -386,24 +369,27 @@ class TestLlamaLLMConversationHistory:
         history = [
             {
                 "turn": 1,
-                "speaker": "persona",
-                "role": "persona",
+                "speaker": Role.PERSONA,
                 "input": "Start",
                 "response": "Hello",
+                "early_termination": False,
+                "logging": {},
             },
             {
                 "turn": 2,
-                "speaker": "agent",
-                "role": "provider",
+                "speaker": Role.PROVIDER,
                 "input": "Hello",
                 "response": "Hi there",
+                "early_termination": False,
+                "logging": {},
             },
             {
                 "turn": 3,
-                "speaker": "persona",
-                "role": "persona",
+                "speaker": Role.PERSONA,
                 "input": "Hi there",
                 "response": "How are you?",
+                "early_termination": False,
+                "logging": {},
             },
         ]
 
@@ -432,9 +418,7 @@ class TestLlamaLLMConversationHistory:
         llm = LlamaLLM(name="test-llama", role=Role.PERSONA)
 
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Hello", "role": "system"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Hello"}]
         )
 
         assert response == "Response"
@@ -456,9 +440,7 @@ class TestLlamaLLMConversationHistory:
         llm = LlamaLLM(name="test-llama", role=Role.PERSONA)
 
         response = await llm.generate_response(
-            conversation_history=[
-                {"turn": 0, "speaker": "system", "response": "Test", "role": "system"}
-            ]
+            conversation_history=[{"turn": 0, "response": "Test"}]
         )
 
         assert response == "Response"
@@ -484,18 +466,29 @@ class TestLlamaLLMConversationHistory:
         )
 
         history = [
-            {"turn": 1, "speaker": "persona", "response": "Hello", "role": "persona"},
+            {
+                "turn": 1,
+                "speaker": Role.PERSONA,
+                "input": "",
+                "response": "Hello",
+                "early_termination": False,
+                "logging": {},
+            },
             {
                 "turn": 2,
-                "speaker": "provider",
+                "speaker": Role.PROVIDER,
+                "input": "Hello",
                 "response": "Hi there",
-                "role": "provider",
+                "early_termination": False,
+                "logging": {},
             },
             {
                 "turn": 3,
-                "speaker": "persona",
+                "speaker": Role.PERSONA,
+                "input": "Hi there",
                 "response": "How are you?",
-                "role": "persona",
+                "early_termination": False,
+                "logging": {},
             },
         ]
 

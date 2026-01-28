@@ -67,18 +67,12 @@ class ConversationSimulator:
 
         total_words = 0
         for turn in range(max_turns):
-            # Record start time for this turn
-
             # Generate response with conversation history
             # On turn 0, create a "turn 0" entry for the initial message
-            # This provides context without being a real conversation turn
+            # This acts as a trigger for the LLM to start the conversation
+            # without counting as a real conversation turn
             if turn == 0:
-                initial_turn = {
-                    "turn": 0,
-                    "speaker": "system",
-                    "response": initial_message,
-                    "role": None,
-                }
+                initial_turn = {"turn": 0, "response": initial_message}
                 history_dicts = [initial_turn]
             else:
                 # Convert conversation history to dict format for LLM interface
@@ -112,10 +106,9 @@ class ConversationSimulator:
             # Record this turn using ConversationTurn
             turn_obj = ConversationTurn(
                 turn=turn + 1,
-                speaker=current_speaker.get_name(),
+                speaker=current_speaker.get_role(),
                 input_message=input_msg,
                 message=lc_message,
-                role=current_speaker.get_role(),
                 early_termination=False,
                 logging_metadata=current_speaker.get_last_response_metadata(),
             )
@@ -147,6 +140,4 @@ class ConversationSimulator:
         # TODO: why is this two functions
         # Convert to dict format for file saving
         history_dicts = [t.to_dict() for t in self.conversation_history]
-        save_conversation_to_file(
-            history_dicts, filename, folder, self.persona.get_name()
-        )
+        save_conversation_to_file(history_dicts, filename, folder)
