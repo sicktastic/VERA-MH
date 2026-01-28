@@ -19,9 +19,9 @@ class ConversationTurn:
 
     Attributes:
         turn: Sequential turn number (1-indexed)
-        speaker: Role of the speaker (Role.PERSONA, Role.PROVIDER, or Role.JUDGE)
-        input_message: The message that prompted this response
-        message: The LangChain message object (HumanMessage or AIMessage)
+        speaker: Role identifier of the speaker (Role.PERSONA or Role.PROVIDER)
+        input_message: The message string that prompted the response_message
+        response_message: The LangChain message object (HumanMessage or AIMessage)
         early_termination: Whether this turn marked the end of conversation
         logging_metadata: Metadata from LLM provider (tokens, timing, etc.)
     """
@@ -29,7 +29,7 @@ class ConversationTurn:
     turn: int
     speaker: Role
     input_message: str
-    message: BaseMessage
+    response_message: BaseMessage
     early_termination: bool = False
     logging_metadata: Optional[Dict[str, Any]] = None
 
@@ -40,12 +40,13 @@ class ConversationTurn:
         Returns:
             The content of the LangChain message
         """
-        content = self.message.content
+        message_str = self.response_message.text
         # LangChain messages can have string or list content; we expect strings
-        if isinstance(content, str):
-            return content
-        # Fallback for unexpected types (shouldn't happen in normal usage)
-        return str(content)
+        if isinstance(message_str, str):
+            return message_str
+
+        # Raise an error if the message is not a string
+        raise ValueError(f"Unexpected message type: {type(message_str)}")
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dict format for file export.
@@ -103,7 +104,7 @@ class ConversationTurn:
             turn=data["turn"],
             speaker=speaker_role,
             input_message=data["input"],
-            message=message,
+            response_message=message,
             early_termination=data.get("early_termination", False),
             logging_metadata=data.get("logging"),
         )

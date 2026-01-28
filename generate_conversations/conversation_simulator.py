@@ -97,18 +97,17 @@ class ConversationSimulator:
                 input_msg = initial_message
             else:
                 # Get the last turn's response as input for this turn
-                input_msg = (
-                    self.conversation_history[-1].response
-                    if self.conversation_history
-                    else ""
-                )
+                if self.conversation_history:
+                    input_msg = self.conversation_history[-1].response
+                else:
+                    raise ValueError(f"Conversation history is empty on turn {turn}")
 
             # Record this turn using ConversationTurn
             turn_obj = ConversationTurn(
                 turn=turn + 1,
                 speaker=current_speaker.get_role(),
                 input_message=input_msg,
-                message=lc_message,
+                response_message=lc_message,
                 early_termination=False,
                 logging_metadata=current_speaker.get_last_response_metadata(),
             )

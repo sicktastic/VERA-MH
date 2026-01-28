@@ -16,7 +16,7 @@ class TestConversationTurnCreation:
             turn=1,
             speaker=Role.PERSONA,
             input_message="Start conversation",
-            message=message,
+            response_message=message,
             logging_metadata={"tokens": 100},
         )
 
@@ -26,7 +26,7 @@ class TestConversationTurnCreation:
         assert turn.response == "Hello world"
         assert turn.early_termination is False
         assert turn.logging_metadata == {"tokens": 100}
-        assert isinstance(turn.message, HumanMessage)
+        assert isinstance(turn.response_message, HumanMessage)
 
     def test_create_with_ai_message(self):
         """Test creating a ConversationTurn with AIMessage."""
@@ -35,7 +35,7 @@ class TestConversationTurnCreation:
             turn=2,
             speaker=Role.PROVIDER,
             input_message="Hello world",
-            message=message,
+            response_message=message,
             early_termination=True,
             logging_metadata={"tokens": 50, "model": "gpt-4"},
         )
@@ -46,13 +46,13 @@ class TestConversationTurnCreation:
         assert turn.response == "Hi there!"
         assert turn.early_termination is True
         assert turn.logging_metadata == {"tokens": 50, "model": "gpt-4"}
-        assert isinstance(turn.message, AIMessage)
+        assert isinstance(turn.response_message, AIMessage)
 
     def test_create_with_defaults(self):
         """Test creating with default values."""
         message = HumanMessage(content="Test")
         turn = ConversationTurn(
-            turn=1, speaker=Role.PERSONA, input_message="", message=message
+            turn=1, speaker=Role.PERSONA, input_message="", response_message=message
         )
 
         assert turn.early_termination is False
@@ -62,11 +62,14 @@ class TestConversationTurnCreation:
         """Test that response property returns message content."""
         message = AIMessage(content="Response text")
         turn = ConversationTurn(
-            turn=1, speaker=Role.PROVIDER, input_message="Input", message=message
+            turn=1,
+            speaker=Role.PROVIDER,
+            input_message="Input",
+            response_message=message,
         )
 
         assert turn.response == "Response text"
-        assert turn.response == turn.message.content
+        assert turn.response == turn.response_message.content
 
 
 class TestConversationTurnToDict:
@@ -79,7 +82,7 @@ class TestConversationTurnToDict:
             turn=1,
             speaker=Role.PERSONA,
             input_message="Start",
-            message=message,
+            response_message=message,
             logging_metadata={"tokens": 100},
         )
 
@@ -101,7 +104,7 @@ class TestConversationTurnToDict:
             turn=5,
             speaker=Role.PROVIDER,
             input_message="See you",
-            message=message,
+            response_message=message,
             early_termination=True,
             logging_metadata={"stop_reason": "end_turn"},
         )
@@ -118,7 +121,7 @@ class TestConversationTurnToDict:
             turn=1,
             speaker=Role.PERSONA,
             input_message="Input",
-            message=message,
+            response_message=message,
             logging_metadata=None,
         )
 
@@ -139,7 +142,7 @@ class TestConversationTurnToDict:
             turn=1,
             speaker=Role.PROVIDER,
             input_message="Prompt",
-            message=message,
+            response_message=message,
             logging_metadata=complex_metadata,
         )
 
@@ -172,8 +175,8 @@ class TestConversationTurnFromDict:
         assert turn.response == "Hello world"
         assert turn.early_termination is False
         assert turn.logging_metadata == {"tokens": 100}
-        assert isinstance(turn.message, HumanMessage)
-        assert turn.message.content == "Hello world"
+        assert isinstance(turn.response_message, HumanMessage)
+        assert turn.response_message.content == "Hello world"
 
     def test_from_dict_agent(self):
         """Test from_dict creates AIMessage for agent speaker."""
@@ -190,8 +193,8 @@ class TestConversationTurnFromDict:
         turn = ConversationTurn.from_dict(data, for_role=Role.PROVIDER)
 
         assert turn.speaker == Role.PROVIDER
-        assert isinstance(turn.message, AIMessage)
-        assert turn.message.content == "Hi there!"
+        assert isinstance(turn.response_message, AIMessage)
+        assert turn.response_message.content == "Hi there!"
 
     def test_from_dict_chatbot(self):
         """Test from_dict creates AIMessage for chatbot speaker."""
@@ -208,7 +211,7 @@ class TestConversationTurnFromDict:
         turn = ConversationTurn.from_dict(data, for_role=Role.PROVIDER)
 
         assert turn.speaker == Role.PROVIDER
-        assert isinstance(turn.message, AIMessage)
+        assert isinstance(turn.response_message, AIMessage)
         assert turn.early_termination is True
 
     def test_from_dict_with_missing_fields(self):
@@ -241,8 +244,8 @@ class TestConversationTurnFromDict:
         turn = ConversationTurn.from_dict(data, for_role=Role.PERSONA)
 
         assert turn.speaker == Role.PROVIDER
-        assert isinstance(turn.message, HumanMessage)
-        assert turn.message.content == "Answer from provider"
+        assert isinstance(turn.response_message, HumanMessage)
+        assert turn.response_message.content == "Answer from provider"
 
     def test_from_dict_roundtrip(self):
         """Test that from_dict(to_dict()) preserves data."""
@@ -251,7 +254,7 @@ class TestConversationTurnFromDict:
             turn=5,
             speaker=Role.PERSONA,
             input_message="Original input",
-            message=original_message,
+            response_message=original_message,
             early_termination=True,
             logging_metadata={"key": "value"},
         )
@@ -268,7 +271,7 @@ class TestConversationTurnFromDict:
         assert restored_turn.response == original_turn.response
         assert restored_turn.early_termination == original_turn.early_termination
         assert restored_turn.logging_metadata == original_turn.logging_metadata
-        assert isinstance(restored_turn.message, HumanMessage)
+        assert isinstance(restored_turn.response_message, HumanMessage)
 
 
 class TestConversationTurnEdgeCases:
@@ -278,7 +281,10 @@ class TestConversationTurnEdgeCases:
         """Test handling empty response content."""
         message = AIMessage(content="")
         turn = ConversationTurn(
-            turn=1, speaker=Role.PROVIDER, input_message="Input", message=message
+            turn=1,
+            speaker=Role.PROVIDER,
+            input_message="Input",
+            response_message=message,
         )
 
         assert turn.response == ""
@@ -289,7 +295,10 @@ class TestConversationTurnEdgeCases:
         multiline_text = "Line 1\nLine 2\nLine 3"
         message = HumanMessage(content=multiline_text)
         turn = ConversationTurn(
-            turn=1, speaker=Role.PERSONA, input_message="Input", message=message
+            turn=1,
+            speaker=Role.PERSONA,
+            input_message="Input",
+            response_message=message,
         )
 
         assert turn.response == multiline_text
@@ -303,7 +312,7 @@ class TestConversationTurnEdgeCases:
             turn=1,
             speaker=Role.PROVIDER,
             input_message="Say hello",
-            message=message,
+            response_message=message,
         )
 
         assert turn.response == unicode_text
