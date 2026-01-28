@@ -3,11 +3,11 @@
 [![CI](https://github.com/SpringCare/VERA-MH/workflows/CI/badge.svg)](https://github.com/SpringCare/VERA-MH/actions/workflows/ci.yml)
 [![Docker](https://github.com/SpringCare/VERA-MH/workflows/Docker%20Build%20Validation/badge.svg)](https://github.com/SpringCare/VERA-MH/actions/workflows/docker.yml)
 
-VERA-MH (Validation of Ethical and Responsible AI in Mental Health) is a comprehensive framework for evaluating AI systems designed for mental health applications. This toolkit enables researchers, developers, and clinicians to systematically assess how well AI systems handle sensitive mental health conversations across detecting potential risk, confirming risk, guiding to human support, communicaticating effectively, and holding safe boundaries. By simulating realistic patient-provider interactions using clinically-developed personas and rubrics, VERA-MH provides standardized evaluation metrics that help ensure AI mental health tools are safe, effective, and responsible before deployment.
+VERA-MH (Validation of Ethical and Responsible AI in Mental Health) is a comprehensive framework for evaluating AI systems designed for mental health applications. This toolkit enables researchers, developers, and clinicians to systematically assess how well AI systems handle sensitive mental health conversations across detecting potential risk, confirming risk, guiding to human support, communicating effectively, and holding safe boundaries. By simulating realistic patient-provider interactions using clinically-developed personas and rubrics, VERA-MH provides standardized evaluation metrics that help ensure AI mental health tools are safe, effective, and responsible before deployment.
 
-This code should be considered a work in progress (including this documentation), and the main avenue to offer feedback.
+This code should be considered a continuous work in progress (including this documentation), and the main avenue to offer feedback.
 We value every interaction that follows the [Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
-There are many quirks of the current structure, which will be simplified and streamlined.
+There are known limitations of the current structure, which will be simplified and streamlined.
 
 ## Table of Contents
 
@@ -22,10 +22,8 @@ There are many quirks of the current structure, which will be simplified and str
 
 ## Additional Resources
 
-<!-- Placeholder: Link to blog post or VERA-MH website -->
-<!-- Placeholder: Link to Kate's paper (publication details TBD) -->
-<!-- Placeholder: AI version of the paper - NeurIPS -->
-<!-- Placeholder: Other content from Kelly -->
+- [VERA-MH Concept Paper](https://arxiv.org/abs/2510.15297)
+- [First Announcement](https://www.springhealth.com/blog/introducing-vera-mh-new-standard-ethical-ai-mental-healthcare)
 
 # Getting started
 0. **Install uv** (if not already installed):
@@ -163,7 +161,7 @@ VERA-MH simulates realistic conversations between Large Language Models (LLMs) f
 ## Features
 
 ### Conversation Generation
-- **Mental Health Personas**: CSV-based system with realistic patient personas including age, background, mental health context, and risk factors
+- **Clinically-informed User Profiles**: TSV-based system with realistic patient personas including age, background, mental health context, and risk factors
 - **Asynchronous Generation**: Concurrent conversation generation for efficient batch processing
 - **Modular Architecture**: Abstract LLM interface allows for easy integration of different LLM providers
 - **System Prompts**: Each LLM instance can be initialized with custom system prompts loaded from files
@@ -172,7 +170,7 @@ VERA-MH simulates realistic conversations between Large Language Models (LLMs) f
 - **Batch Processing**: Run multiple conversations with different personas and multiple runs per persona
 
 ### Conversation Evaluation
-- **LLM-based Judging**: Automated evaluation of conversations using LLM judges against clinical rubrics
+- **LLM-as-a-Judge**: Automated evaluation of conversations using LLM judges against clinical rubrics
 - **Structured Output**: Uses Pydantic models and LangChain's structured output for reliable, type-safe responses
 - **Question Flow Navigation**: Dynamic rubric navigation based on answers (with GOTO logic, END conditions, etc.)
 - **Dimension Scoring**: Evaluates conversations across multiple clinical dimensions (risk detection, resource provision, etc.)
@@ -181,10 +179,11 @@ VERA-MH simulates realistic conversations between Large Language Models (LLMs) f
 
 ### LLM Provider Support
 - **LangChain Integration**: Uses LangChain for robust LLM interactions
-- **Claude Support**: Full implementation of Claude models via Anthropic's API with structured output
-- **OpenAI Support**: Complete integration with GPT models via OpenAI's API with structured output
-- **Gemini Support**: Google Gemini integration with structured output
-- **Llama Support**: Local Llama models via Ollama (limited structured output support)
+- **Claude Support**: Claude models via LangChain's Anthropic library with structured output
+- **OpenAI Support**: GPT models via LangChain's OpenAI library with structured output
+- **Gemini Support**: Google Gemini models via LangChain's Google library with structured output
+- **Azure Support**: Azure-deployed models via LangChain's Azure library with structured output
+- **Ollama Support**: Local Ollama models via LangChain's Ollama library (limited structured output support)
 
 
 ## Architecture
@@ -196,7 +195,7 @@ VERA-MH simulates realistic conversations between Large Language Models (LLMs) f
 - **`generate_conversations/`**: Core conversation generation system
   - **`conversation_simulator.py`**: Manages individual conversations between persona and agent LLMs
   - **`runner.py`**: Orchestrates multiple conversations with logging and file management
-  - **`utils.py`**: CSV-based persona loading and prompt templating
+  - **`utils.py`**: TSV-based persona loading and prompt templating
 - **`judge/`**: Conversation evaluation system
   - **`llm_judge.py`**: LLM-based judge for evaluating conversations against rubrics
   - **`response_models.py`**: Pydantic models for structured LLM responses
@@ -227,7 +226,7 @@ VERA-MH simulates realistic conversations between Large Language Models (LLMs) f
 
 ### Persona System
 
-The system uses a CSV-based approach for managing mental health patient personas:
+The system uses a TSV-based approach for managing mental health patient personas:
 
 #### Persona Data Structure (`data/personas.tsv`)
 Each persona includes:
@@ -340,12 +339,20 @@ The script will:
 ### Custom Personas and Prompts
 
 #### 1. Add New Personas (`data/personas.tsv`)
-Add new rows to the CSV file with the required fields:
-
-```csv
-Name,Age,Gender,Background,Mental Health Context,Communication Style,Trajectory of sharing,Sample Prompt,Triggers/Stressors,Risk Type,Acuity
-New Patient,30,Female,Software engineer,Experiencing burnout,Direct and analytical,Open about work stress,"I can't focus at work anymore",Work pressure deadlines,Self Harm,Moderate Acuity
-```
+Add new rows to the TSV file with the required fields:
+- Name
+- Age
+- Race/Ethnicity
+- Pronouns
+- Background
+- Mental Health Context
+- Communication Style
+- Recent Stressors/Risk Factors
+- Disclosure of Suicide Risk
+- Current Suicidal Thoughts and Behaviors, Reasons for Living
+- Current Risk Level
+- Reaction to Chatbot Responses
+- Sample Prompts
 
 #### 2. Modify Prompt Template (`data/persona_prompt_template.txt`)
 Update the template to include new fields or modify behavior patterns.
