@@ -73,6 +73,12 @@ class ConversationTurn:
         it's an AIMessage (what "I" said) for the requested role.
         Otherwise, it's a HumanMessage (what "they" said) for the requested role.
 
+        For example:
+        If the requested for_role is Role.PERSONA, and speaker is Role.PROVIDER,
+        then the message is a HumanMessage (what "they" said).
+        If the requested for_role is Role.PROVIDER, and speaker is Role.PROVIDER,
+        then the message is an AIMessage (what "I" said).
+
         Args:
             data: Dictionary with keys: turn, speaker, input, response, etc.
                 speaker must be a Role enum value (string) or Role enum.
