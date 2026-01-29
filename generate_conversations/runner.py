@@ -97,7 +97,7 @@ class ConversationRunner:
             logger=logger,
             llm1_model_str=model_name,
             llm1_prompt=persona_name,
-            llm2_name=agent.get_name(),
+            llm2_name=agent.name,
             llm2_model_str=getattr(agent, "model_name", "unknown"),
             initial_message="",
             max_turns=max_turns,

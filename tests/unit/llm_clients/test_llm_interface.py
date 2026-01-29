@@ -50,11 +50,6 @@ class TestLLMInterface:
         assert llm.name == "TestLLM"
         assert llm.system_prompt == prompt
 
-    def test_get_name(self):
-        """Test get_name method (line 30)."""
-        llm = ConcreteLLM(name="MyLLM", role=Role.PROVIDER)
-        assert llm.get_name() == "MyLLM"
-
     @pytest.mark.asyncio
     async def test_generate_response_abstract_method(self):
         """Test that generate_response is implemented in concrete class (line 21)."""

@@ -58,18 +58,6 @@ class LLMInterface(ABC):
         """Set or update the system prompt."""
         pass
 
-    def get_name(self) -> str:
-        """Get the name of this LLM instance."""
-        return self.name
-
-    def get_role(self) -> Role:
-        """Get the role of this LLM instance."""
-        return self.role
-
-    def get_role_value(self) -> str:
-        """Get the role value as a string, or None if no role is set."""
-        return self.role.value
-
     async def cleanup(self) -> None:
         """Clean up any resources used by this LLM instance.
 

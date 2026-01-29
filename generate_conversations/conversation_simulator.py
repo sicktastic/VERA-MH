@@ -105,7 +105,7 @@ class ConversationSimulator:
             # Record this turn using ConversationTurn
             turn_obj = ConversationTurn(
                 turn=turn + 1,
-                speaker=current_speaker.get_role(),
+                speaker=current_speaker.role,
                 input_message=input_msg,
                 response_message=lc_message,
                 early_termination=False,

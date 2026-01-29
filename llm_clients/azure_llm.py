@@ -147,7 +147,7 @@ class AzureLLM(JudgeLLM):
         messages.extend(build_langchain_messages(self.role, conversation_history))
 
         # Debug: Print messages being sent to LLM
-        debug_print(f"\n[DEBUG {self.name} - {self.get_role_value()}] Messages to LLM:")
+        debug_print(f"\n[DEBUG {self.name} - {self.role.value}] Messages to LLM:")
         for i, msg in enumerate(messages):
             msg_type = type(msg).__name__
             preview = msg.content[:100]
@@ -156,9 +156,7 @@ class AzureLLM(JudgeLLM):
 
         try:
             # Debug: Print what we're about to send
-            debug_print(
-                f"\n[DEBUG {self.name} - {self.get_role_value()}] Calling Azure:"
-            )
+            debug_print(f"\n[DEBUG {self.name} - {self.role.value}] Calling Azure:")
             debug_print(f"  Model: {self.model_name}")
             debug_print(f"  Endpoint: {self.endpoint}")
             debug_print(f"  API Version: {self.api_version}")
@@ -245,7 +243,7 @@ class AzureLLM(JudgeLLM):
                     f"\n  Error details: {error_details}"
                 )
                 debug_print(
-                    f"\n[DEBUG {self.name} - {self.get_role_value()}] " f"{helpful_msg}"
+                    f"\n[DEBUG {self.name} - {self.role.value}] " f"{helpful_msg}"
                 )
                 return f"Error generating response: {helpful_msg}"
 

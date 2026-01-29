@@ -84,7 +84,7 @@ class GeminiLLM(JudgeLLM):
 
         # Debug: Print messages being sent to LLM
         debug_print(
-            f"\n[DEBUG {self.name} - {self.get_role_value()}] " "Messages sent to LLM:"
+            f"\n[DEBUG {self.name} - {self.role.value}] " "Messages sent to LLM:"
         )
         for i, msg in enumerate(messages):
             msg_type = type(msg).__name__
@@ -106,7 +106,7 @@ class GeminiLLM(JudgeLLM):
                     else self.model_name
                 ),
                 "provider": "gemini",
-                "role": self.get_role_value(),
+                "role": self.role.value,
                 "timestamp": datetime.now().isoformat(),
                 "response_time_seconds": round(end_time - start_time, 3),
                 "usage": {},
@@ -152,7 +152,7 @@ class GeminiLLM(JudgeLLM):
                 "response_id": None,
                 "model": self.model_name,
                 "provider": "gemini",
-                "role": self.get_role_value(),
+                "role": self.role.value,
                 "timestamp": datetime.now().isoformat(),
                 "error": str(e),
                 "usage": {},
@@ -195,7 +195,7 @@ class GeminiLLM(JudgeLLM):
                 "response_id": None,
                 "model": self.model_name,
                 "provider": "gemini",
-                "role": self.get_role_value(),
+                "role": self.role.value,
                 "timestamp": datetime.now().isoformat(),
                 "response_time_seconds": round(end_time - start_time, 3),
                 "usage": {},
@@ -215,7 +215,7 @@ class GeminiLLM(JudgeLLM):
                 "response_id": None,
                 "model": self.model_name,
                 "provider": "gemini",
-                "role": self.get_role_value(),
+                "role": self.role.value,
                 "timestamp": datetime.now().isoformat(),
                 "error": str(e),
                 "usage": {},
