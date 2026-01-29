@@ -2,7 +2,6 @@ import csv
 import json
 import logging
 import os
-import subprocess
 import sys
 import tempfile
 import time
@@ -67,43 +66,6 @@ def repo_root():
 @pytest.mark.integration
 class TestVERAMHPipeline:
     """Integration tests for the complete VERA-MH pipeline."""
-
-    def run_cmd(
-        self, cmd: list[str], cwd: Path | None = None, verbose: bool = False
-    ) -> subprocess.CompletedProcess:
-        """Run a command and return the completed process with error checking.
-
-        Args:
-            cmd: Command and arguments to run
-            cwd: Working directory for the command
-            verbose: Whether to log command output (useful for debugging test failures)
-        """
-        logger = logging.getLogger(__name__)
-
-        p = subprocess.run(
-            cmd,
-            cwd=str(cwd) if cwd else None,
-            capture_output=True,
-            text=True,
-        )
-
-        if verbose:
-            logger.info("Command: %s", " ".join(map(str, cmd)))
-            logger.info("Return code: %d", p.returncode)
-            if p.stdout:
-                logger.info("STDOUT:\n%s", p.stdout)
-            if p.stderr:
-                logger.info("STDERR:\n%s", p.stderr)
-
-        # Always log errors, regardless of verbose setting
-        if p.returncode != 0:
-            logger.error("Command failed: %s", " ".join(map(str, cmd)))
-            logger.error("Return code: %d", p.returncode)
-            if p.stderr:
-                logger.error("STDERR:\n%s", p.stderr)
-
-        p.check_returncode()
-        return p
 
     async def generate_one_conversation(
         self,
@@ -172,15 +134,15 @@ class TestVERAMHPipeline:
 
         # Additional validation: check if directory has expected content
         conv_files = list(conv_dir.glob("*.txt")) + list(conv_dir.glob("*.json"))
+        logger = logging.getLogger(__name__)
         if not conv_files:
-            logger = logging.getLogger(__name__)
             logger.warning(
                 f"Generated directory {conv_dir} exists but contains no "
                 f"conversation files (.txt/.json). "
                 f"Contents: {[f.name for f in conv_dir.iterdir()]}"
             )
 
-        print(f"Generated conversations in {conv_dir}")
+        logger.info(f"Generated conversations in {conv_dir}")
         return conv_dir
 
     async def judge_conversations(
@@ -283,7 +245,7 @@ class TestVERAMHPipeline:
             # Ensure we actually processed some data rows
             assert row_count > 0, "results.csv should contain at least one data row"
 
-        print(f"Judge created evaluation files in {eval_dir}")
+        logging.info("Judge created evaluation files in %s", eval_dir)
         return eval_dir
 
     def score_evaluation(
@@ -686,10 +648,9 @@ class TestVERAMHPipeline:
         """Test pipeline handles errors gracefully."""
         conversations_root = test_workspace / "conversations"
 
-        # Test with invalid model - should fail during API call or model validation
-        # Possible exceptions: RuntimeError (from generate_one_conversation),
-        # API client exceptions, or other async/model-related errors
-        with pytest.raises((RuntimeError, ValueError)):
+        # Test with invalid model - should fail during model validation
+        # LLMFactory raises ValueError for unsupported model names
+        with pytest.raises(ValueError, match="Unsupported model"):
             await self.generate_one_conversation(
                 persona_name="Ray",
                 member_model="invalid-model-name",
@@ -746,6 +707,11 @@ class TestVERAMHPipeline:
             os.chdir(repo_root)
 
             try:
+                # Track directories that will be created for robust cleanup
+                # (track immediately so cleanup works even if pipeline fails)
+                base_folder_name = f"pipeline_test_{timestamp}"
+                created_dirs.extend([base_folder_name, "evaluations"])
+
                 # Run the complete pipeline with real API calls
                 await pipeline_main()
 
@@ -763,7 +729,6 @@ class TestVERAMHPipeline:
                 evaluations_dir = None
 
                 # The folder_name parameter creates the base folder directly
-                base_folder_name = f"pipeline_test_{timestamp}"
                 if os.path.exists(base_folder_name) and os.path.isdir(base_folder_name):
                     # Look inside this folder for the generated conversation directory
                     for item in os.listdir(base_folder_name):
@@ -879,13 +844,6 @@ class TestVERAMHPipeline:
                 print(f"   Conversations: {len(conv_files)} files")
                 print(f"   Evaluations: {len(eval_files)} files")
 
-                # Track created directories for cleanup
-                base_folder_name = f"pipeline_test_{timestamp}"
-                if os.path.exists(base_folder_name):
-                    created_dirs.append(base_folder_name)
-                if os.path.exists("evaluations"):
-                    created_dirs.append("evaluations")
-
                 return {
                     "conversations_dir": conversations_dir,
                     "evaluations_dir": evaluations_dir,
@@ -964,6 +922,11 @@ class TestVERAMHPipeline:
             os.chdir(repo_root)
 
             try:
+                # Track directories that will be created for robust cleanup
+                # (track immediately so cleanup works even if pipeline fails)
+                comparison_folder_name = f"pipeline_comparison_{timestamp}"
+                created_dirs.extend([comparison_folder_name, "evaluations"])
+
                 await pipeline_main()
 
                 # Find the evaluation folder created by run_pipeline
@@ -1014,13 +977,6 @@ class TestVERAMHPipeline:
 
                 # Extract aggregates for comparison
                 pipeline_scores = pipeline_scores_data["aggregates"]
-
-                # Track created directories for cleanup
-                comparison_folder_name = f"pipeline_comparison_{timestamp}"
-                if os.path.exists(comparison_folder_name):
-                    created_dirs.append(comparison_folder_name)
-                if os.path.exists("evaluations"):
-                    created_dirs.append("evaluations")
 
             finally:
                 os.chdir(original_cwd)
