@@ -5,7 +5,7 @@ from langchain_community.llms import Ollama
 from utils.conversation_utils import format_conversation_as_string
 
 from .config import Config
-from .llm_interface import LLMInterface
+from .llm_interface import LLMInterface, Role
 
 
 class LlamaLLM(LLMInterface):
@@ -19,11 +19,12 @@ class LlamaLLM(LLMInterface):
     def __init__(
         self,
         name: str,
+        role: Role,
         system_prompt: Optional[str] = None,
         model_name: Optional[str] = None,
         **kwargs,
     ):
-        super().__init__(name, system_prompt)
+        super().__init__(name, role, system_prompt)
 
         # Use provided model name or fall back to config default
         self.model_name = model_name or Config.get_llama_config()["model"]
@@ -51,6 +52,7 @@ class LlamaLLM(LLMInterface):
         try:
             # Build full message using utility function
             full_message = format_conversation_as_string(
+                role=self.role,
                 conversation_history=conversation_history,
                 system_prompt=self.system_prompt,
             )
