@@ -1,23 +1,6 @@
 """Unit tests for judge.py CLI argument parsing."""
 
-
-def parse_judge_models(model_specs):
-    """
-    Parse judge model specifications.
-
-    This is the logic from judge.py main() function that parses
-    the --judge-model argument.
-    """
-    judge_models = {}
-    for model_spec in model_specs:
-        if ":" in model_spec:
-            # Format: "model:count"
-            model, count = model_spec.rsplit(":", 1)
-            judge_models[model] = int(count)
-        else:
-            # Format: "model" (defaults to 1 instance)
-            judge_models[model_spec] = 1
-    return judge_models
+from utils.utils import parse_judge_models
 
 
 class TestJudgeModelParsing:

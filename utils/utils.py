@@ -1,6 +1,21 @@
 import ast
 
 
+def parse_judge_models(model_arg):
+    """Parse judge model specifications from command line argument into a dictionary."""
+    judge_models = {}
+    for model_spec in model_arg:
+        if ":" in model_spec:
+            # Format: "model:count"
+            model, count = model_spec.rsplit(":", 1)
+            judge_models[model] = int(count)
+        else:
+            # Format: "model" (defaults to 1 instance)
+            judge_models[model_spec] = 1
+
+    return judge_models
+
+
 def parse_key_value_list(arg):
     """Helper function to parse a list of key-value pairs into a dictionary."""
     d = {}
@@ -12,7 +27,7 @@ def parse_key_value_list(arg):
         try:
             value = ast.literal_eval(value)
         except (ValueError, SyntaxError):
-            # Note: we are not logging the error here as we are leaving the value as a string
+            # Note: not logging the error here as we are leaving the value as a string
             pass
         d[key] = value
     return d

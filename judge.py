@@ -11,21 +11,13 @@ from typing import Optional
 from judge import judge_conversations, judge_single_conversation
 from judge.llm_judge import LLMJudge
 from judge.rubric_config import ConversationData, RubricConfig, load_conversations
-from utils.utils import parse_key_value_list
+from utils.utils import parse_judge_models, parse_key_value_list
 
 
 async def main(args) -> Optional[str]:
     """Main async entrypoint for judging conversations."""
     # Parse judge models from args (supports "model" or "model:count" format)
-    judge_models = {}
-    for model_spec in args.judge_model:
-        if ":" in model_spec:
-            # Format: "model:count"
-            model, count = model_spec.rsplit(":", 1)
-            judge_models[model] = int(count)
-        else:
-            # Format: "model" (defaults to 1 instance)
-            judge_models[model_spec] = 1
+    judge_models = parse_judge_models(args.judge_model)
 
     models_str = ", ".join(f"{model}x{count}" for model, count in judge_models.items())
     print(f"🎯 LLM Judge | Models: {models_str}")
