@@ -11,7 +11,8 @@ from typing import Optional
 from judge import judge_conversations, judge_single_conversation
 from judge.llm_judge import LLMJudge
 from judge.rubric_config import ConversationData, RubricConfig, load_conversations
-from utils.utils import parse_judge_models, parse_key_value_list
+from judge.utils import parse_judge_models
+from utils.utils import parse_key_value_list
 
 
 async def main(args) -> Optional[str]:
