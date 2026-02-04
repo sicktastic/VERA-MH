@@ -94,7 +94,7 @@ class TestLLMBase(ABC):
 
     def test_init_with_role_and_system_prompt(self):
         """Test basic initialization with role and system prompt."""
-        with self.get_mock_patches():
+        with self.get_mock_patches():  # pyright: ignore[reportGeneralTypeIssues]
             llm = self.create_llm(
                 role=Role.PERSONA, name="TestLLM", system_prompt="Test prompt"
             )
@@ -106,7 +106,7 @@ class TestLLMBase(ABC):
 
     def test_set_system_prompt(self):
         """Test setting and updating system prompt."""
-        with self.get_mock_patches():
+        with self.get_mock_patches():  # pyright: ignore[reportGeneralTypeIssues]
             llm = self.create_llm(
                 role=Role.PERSONA, name="TestLLM", system_prompt="Initial prompt"
             )
@@ -121,7 +121,7 @@ class TestLLMBase(ABC):
         self, mock_response_factory, mock_llm_factory, mock_system_message
     ):
         """Test that generate_response returns a string."""
-        with self.get_mock_patches():
+        with self.get_mock_patches():  # pyright: ignore[reportGeneralTypeIssues]
             # Create mock response
             mock_response = mock_response_factory(
                 text="Test response text",
@@ -135,7 +135,7 @@ class TestLLMBase(ABC):
             llm = self.create_llm(role=Role.PROVIDER, name="TestLLM")
 
             # Replace the internal llm with our mock
-            llm.llm = mock_llm_client
+            llm.llm = mock_llm_client  # pyright: ignore[reportAttributeAccessIssue]
 
             response = await llm.generate_response(
                 conversation_history=mock_system_message
@@ -149,7 +149,7 @@ class TestLLMBase(ABC):
         self, mock_response_factory, mock_llm_factory, mock_system_message
     ):
         """Test that generate_response updates last_response_metadata."""
-        with self.get_mock_patches():
+        with self.get_mock_patches():  # pyright: ignore[reportGeneralTypeIssues]
             mock_response = mock_response_factory(
                 text="Response",
                 response_id="test_123",
@@ -159,7 +159,7 @@ class TestLLMBase(ABC):
             mock_llm_client = mock_llm_factory(response=mock_response)
 
             llm = self.create_llm(role=Role.PROVIDER, name="TestLLM")
-            llm.llm = mock_llm_client
+            llm.llm = mock_llm_client  # pyright: ignore[reportAttributeAccessIssue]
 
             await llm.generate_response(conversation_history=mock_system_message)
 
@@ -176,7 +176,7 @@ class TestLLMBase(ABC):
 
     def test_get_last_response_metadata_returns_copy(self):
         """Test that get_last_response_metadata returns a copy, not original."""
-        with self.get_mock_patches():
+        with self.get_mock_patches():  # pyright: ignore[reportGeneralTypeIssues]
             llm = self.create_llm(role=Role.PROVIDER, name="TestLLM")
 
             assert_metadata_copy_behavior(llm)
@@ -186,14 +186,14 @@ class TestLLMBase(ABC):
         self, mock_llm_factory, mock_system_message
     ):
         """Test that generate_response handles API errors gracefully."""
-        with self.get_mock_patches():
+        with self.get_mock_patches():  # pyright: ignore[reportGeneralTypeIssues]
             # Create mock that raises an exception
             mock_llm_client = mock_llm_factory(
                 response=None, side_effect=Exception("API Error")
             )
 
             llm = self.create_llm(role=Role.PROVIDER, name="TestLLM")
-            llm.llm = mock_llm_client
+            llm.llm = mock_llm_client  # pyright: ignore[reportAttributeAccessIssue]
 
             response = await llm.generate_response(
                 conversation_history=mock_system_message
@@ -239,7 +239,7 @@ class TestJudgeLLMBase(TestLLMBase):
     @pytest.mark.asyncio
     async def test_generate_structured_response_success(self, mock_llm_factory):
         """Test successful structured response generation with simple model."""
-        with self.get_mock_patches():
+        with self.get_mock_patches():  # pyright: ignore[reportGeneralTypeIssues]
             # Define test Pydantic model
             class TestResponse(BaseModel):
                 answer: str = Field(description="The answer")
@@ -259,7 +259,7 @@ class TestJudgeLLMBase(TestLLMBase):
             )
 
             llm = self.create_llm(role=Role.JUDGE, name="TestLLM")
-            llm.llm = mock_llm_client
+            llm.llm = mock_llm_client  # pyright: ignore[reportAttributeAccessIssue]
 
             response = await llm.generate_structured_response(
                 "What is the answer?", TestResponse
@@ -284,7 +284,7 @@ class TestJudgeLLMBase(TestLLMBase):
         self, mock_llm_factory
     ):
         """Test structured response with nested Pydantic model."""
-        with self.get_mock_patches():
+        with self.get_mock_patches():  # pyright: ignore[reportGeneralTypeIssues]
             # Define nested Pydantic models
             class SubScore(BaseModel):
                 value: int = Field(description="Score value")
@@ -315,7 +315,7 @@ class TestJudgeLLMBase(TestLLMBase):
             )
 
             llm = self.create_llm(role=Role.JUDGE, name="TestLLM")
-            llm.llm = mock_llm_client
+            llm.llm = mock_llm_client  # pyright: ignore[reportAttributeAccessIssue]
 
             response = await llm.generate_structured_response(
                 "Evaluate this.", ComplexResponse
@@ -331,7 +331,7 @@ class TestJudgeLLMBase(TestLLMBase):
     @pytest.mark.asyncio
     async def test_generate_structured_response_error_handling(self):
         """Test error handling in structured response generation."""
-        with self.get_mock_patches():
+        with self.get_mock_patches():  # pyright: ignore[reportGeneralTypeIssues]
 
             class TestResponse(BaseModel):
                 answer: str
@@ -348,7 +348,7 @@ class TestJudgeLLMBase(TestLLMBase):
             )
 
             llm = self.create_llm(role=Role.JUDGE, name="TestLLM")
-            llm.llm = mock_llm_client
+            llm.llm = mock_llm_client  # pyright: ignore[reportAttributeAccessIssue]
 
             # Should raise RuntimeError
             with pytest.raises(RuntimeError) as exc_info:
@@ -366,7 +366,7 @@ class TestJudgeLLMBase(TestLLMBase):
     @pytest.mark.asyncio
     async def test_structured_response_invalid_type_raises_error(self):
         """Test that invalid response type is caught."""
-        with self.get_mock_patches():
+        with self.get_mock_patches():  # pyright: ignore[reportGeneralTypeIssues]
 
             class TestResponse(BaseModel):
                 answer: str
@@ -381,7 +381,7 @@ class TestJudgeLLMBase(TestLLMBase):
             )
 
             llm = self.create_llm(role=Role.JUDGE, name="TestLLM")
-            llm.llm = mock_llm_client
+            llm.llm = mock_llm_client  # pyright: ignore[reportAttributeAccessIssue]
 
             # Should raise error about wrong type
             with pytest.raises(RuntimeError) as exc_info:
