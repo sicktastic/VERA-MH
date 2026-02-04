@@ -125,9 +125,6 @@ class AzureLLM(JudgeLLM):
         self.max_tokens = getattr(self.llm, "max_tokens", None)
         self.top_p = getattr(self.llm, "top_p", None)
 
-        # Store metadata from last response
-        self.last_response_metadata: Dict[str, Any] = {}
-
     async def generate_response(
         self,
         conversation_history: Optional[List[Dict[str, Any]]] = None,
