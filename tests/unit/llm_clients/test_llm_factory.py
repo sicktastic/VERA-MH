@@ -27,23 +27,6 @@ def mock_all_api_keys():
         yield
 
 
-@pytest.fixture
-def mock_azure_config():
-    """Fixture to patch Azure config for Azure-specific tests."""
-    with (
-        patch("llm_clients.azure_llm.Config.AZURE_API_KEY", "test-key"),
-        patch(
-            "llm_clients.azure_llm.Config.AZURE_ENDPOINT",
-            "https://test.openai.azure.com",
-        ),
-        patch(
-            "llm_clients.azure_llm.Config.get_azure_config",
-            return_value={"model": "azure-gpt-4"},
-        ),
-    ):
-        yield
-
-
 @pytest.mark.unit
 class TestLLMFactory:
     """Unit tests for LLMFactory class."""

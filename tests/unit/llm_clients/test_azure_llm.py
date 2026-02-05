@@ -31,23 +31,6 @@ class DictWithAttr(dict):
 
 
 @pytest.fixture
-def mock_azure_config():
-    """Fixture to patch Azure config values."""
-    with (
-        patch("llm_clients.azure_llm.Config.AZURE_API_KEY", "test-key"),
-        patch(
-            "llm_clients.azure_llm.Config.AZURE_ENDPOINT",
-            "https://test.openai.azure.com",
-        ),
-        patch(
-            "llm_clients.azure_llm.Config.get_azure_config",
-            return_value={"model": "gpt-4"},
-        ),
-    ):
-        yield
-
-
-@pytest.fixture
 def mock_azure_model():
     """Fixture to patch AzureAIChatCompletionsModel."""
     with patch("llm_clients.azure_llm.AzureAIChatCompletionsModel") as mock:

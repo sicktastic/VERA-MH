@@ -255,20 +255,32 @@ def mock_google_api_key(monkeypatch):
     )
 
 
+# Note there is no need to mock the other LLM Client configs as Azure's is a bit complex
 @pytest.fixture
-def mock_azure_credentials(monkeypatch):
-    """Patch Azure credentials for Azure tests."""
-    _patch_api_credentials(
-        monkeypatch,
-        env_vars={
-            "AZURE_ENDPOINT": "https://test.openai.azure.com/",
-            "AZURE_API_KEY": "test-azure-key",
-        },
-        config_attrs={
-            "AZURE_ENDPOINT": "https://test.openai.azure.com/",
-            "AZURE_API_KEY": "test-azure-key",
-        },
-    )
+def mock_azure_config():
+    """Patch Azure configuration including credentials and model config.
+
+    This fixture patches:
+    - AZURE_API_KEY
+    - AZURE_ENDPOINT
+    - Config.get_azure_config() to return default model
+
+    Use this for Azure-specific tests that need full config mocking.
+    """
+    from unittest.mock import patch
+
+    with (
+        patch("llm_clients.azure_llm.Config.AZURE_API_KEY", "test-key"),
+        patch(
+            "llm_clients.azure_llm.Config.AZURE_ENDPOINT",
+            "https://test.openai.azure.com",
+        ),
+        patch(
+            "llm_clients.azure_llm.Config.get_azure_config",
+            return_value={"model": "gpt-4"},
+        ),
+    ):
+        yield
 
 
 # ============================================================================
