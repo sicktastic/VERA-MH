@@ -70,14 +70,9 @@ class TestClaudeLLM(TestJudgeLLMBase):
 
         assert "ANTHROPIC_API_KEY not found" in str(exc_info.value)
 
-    @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
-    @patch("llm_clients.claude_llm.ChatAnthropic")
-    def test_init_with_default_model(self, mock_chat_anthropic):
+    @pytest.mark.usefixtures("mock_claude_config", "mock_claude_model")
+    def test_init_with_default_model(self):
         """Test initialization with default model from config."""
-        mock_llm = MagicMock()
-        mock_llm.model = "claude-sonnet-4-5-20250929"
-        mock_chat_anthropic.return_value = mock_llm
-
         llm = ClaudeLLM(
             name="TestClaude", role=Role.PERSONA, system_prompt="Test prompt"
         )
@@ -87,39 +82,34 @@ class TestClaudeLLM(TestJudgeLLMBase):
         assert llm.model_name == "claude-sonnet-4-5-20250929"
         assert llm.last_response_metadata == {}
 
-    @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
-    @patch("llm_clients.claude_llm.ChatAnthropic")
-    def test_init_with_custom_model(self, mock_chat_anthropic):
+    @pytest.mark.usefixtures("mock_claude_config", "mock_claude_model")
+    def test_init_with_custom_model(self):
         """Test initialization with custom model name."""
-        mock_llm = MagicMock()
-        mock_llm.model = "claude-3-opus-20240229"
-        mock_chat_anthropic.return_value = mock_llm
-
         llm = ClaudeLLM(
             name="TestClaude", role=Role.PERSONA, model_name="claude-3-opus-20240229"
         )
 
         assert llm.model_name == "claude-3-opus-20240229"
 
-    @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
-    @patch("llm_clients.claude_llm.ChatAnthropic")
-    def test_init_with_kwargs(self, mock_chat_anthropic, default_llm_kwargs):
+    @pytest.mark.usefixtures("mock_claude_config")
+    def test_init_with_kwargs(self, default_llm_kwargs):
         """Test initialization with additional kwargs."""
-        mock_llm = MagicMock()
-        mock_llm.model = "claude-sonnet-4-5-20250929"
-        mock_chat_anthropic.return_value = mock_llm
+        with patch("llm_clients.claude_llm.ChatAnthropic") as mock_chat_anthropic:
+            mock_llm = MagicMock()
+            mock_llm.model = "claude-sonnet-4-5-20250929"
+            mock_chat_anthropic.return_value = mock_llm
 
-        ClaudeLLM(
-            name="TestClaude",
-            role=Role.PERSONA,
-            **default_llm_kwargs,
-        )
+            ClaudeLLM(
+                name="TestClaude",
+                role=Role.PERSONA,
+                **default_llm_kwargs,
+            )
 
-        # Verify kwargs were passed to ChatAnthropic
-        call_kwargs = mock_chat_anthropic.call_args[1]
-        assert call_kwargs["temperature"] == 0.5
-        assert call_kwargs["max_tokens"] == 500
-        assert call_kwargs["top_p"] == 0.9
+            # Verify kwargs were passed to ChatAnthropic
+            call_kwargs = mock_chat_anthropic.call_args[1]
+            assert call_kwargs["temperature"] == 0.5
+            assert call_kwargs["max_tokens"] == 500
+            assert call_kwargs["top_p"] == 0.9
 
     @pytest.mark.asyncio
     @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
@@ -293,32 +283,22 @@ class TestClaudeLLM(TestJudgeLLMBase):
         metadata = llm.get_last_response_metadata()
         assert_response_timing(metadata)
 
+    @pytest.mark.usefixtures("mock_claude_config", "mock_claude_model")
     def test_get_last_response_metadata_returns_copy(self):
         """Test that get_last_response_metadata returns a copy."""
-        with patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key"):
-            with patch("llm_clients.claude_llm.ChatAnthropic") as mock_chat:
-                mock_llm = MagicMock()
-                mock_llm.model = "claude-sonnet-4-5-20250929"
-                mock_chat.return_value = mock_llm
+        llm = ClaudeLLM(name="TestClaude", role=Role.PERSONA)
+        assert_metadata_copy_behavior(llm)
 
-                llm = ClaudeLLM(name="TestClaude", role=Role.PERSONA)
-                assert_metadata_copy_behavior(llm)
-
+    @pytest.mark.usefixtures("mock_claude_config", "mock_claude_model")
     def test_set_system_prompt(self):
         """Test set_system_prompt method."""
-        with patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key"):
-            with patch("llm_clients.claude_llm.ChatAnthropic") as mock_chat:
-                mock_llm = MagicMock()
-                mock_llm.model = "claude-sonnet-4-5-20250929"
-                mock_chat.return_value = mock_llm
+        llm = ClaudeLLM(
+            name="TestClaude", role=Role.PERSONA, system_prompt="Initial prompt"
+        )
+        assert llm.system_prompt == "Initial prompt"
 
-                llm = ClaudeLLM(
-                    name="TestClaude", role=Role.PERSONA, system_prompt="Initial prompt"
-                )
-                assert llm.system_prompt == "Initial prompt"
-
-                llm.set_system_prompt("Updated prompt")
-                assert llm.system_prompt == "Updated prompt"
+        llm.set_system_prompt("Updated prompt")
+        assert llm.system_prompt == "Updated prompt"
 
     @pytest.mark.asyncio
     @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
@@ -581,160 +561,168 @@ class TestClaudeLLM(TestJudgeLLMBase):
         verify_message_types_for_persona(mock_llm, expected_message_count=4)
 
     @pytest.mark.asyncio
-    @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
-    @patch("llm_clients.claude_llm.ChatAnthropic")
-    async def test_generate_structured_response_success(self, mock_chat_anthropic):
+    @pytest.mark.usefixtures("mock_claude_config", "mock_claude_model")
+    async def test_generate_structured_response_success(self):
         """Test successful structured response generation."""
         from pydantic import BaseModel, Field
 
-        mock_llm = MagicMock()
-        mock_llm.model = "claude-sonnet-4-5-20250929"
+        with patch("llm_clients.claude_llm.ChatAnthropic") as mock_chat_anthropic:
+            mock_llm = MagicMock()
+            mock_llm.model = "claude-sonnet-4-5-20250929"
 
-        # Create a test Pydantic model
-        class TestResponse(BaseModel):
-            answer: str = Field(description="The answer")
-            reasoning: str = Field(description="The reasoning")
+            # Create a test Pydantic model
+            class TestResponse(BaseModel):
+                answer: str = Field(description="The answer")
+                reasoning: str = Field(description="The reasoning")
 
-        # Mock structured LLM
-        mock_structured_llm = MagicMock()
-        test_response = TestResponse(answer="Yes", reasoning="Because it's correct")
-        mock_structured_llm.ainvoke = AsyncMock(return_value=test_response)
-        mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            # Mock structured LLM
+            mock_structured_llm = MagicMock()
+            test_response = TestResponse(answer="Yes", reasoning="Because it's correct")
+            mock_structured_llm.ainvoke = AsyncMock(return_value=test_response)
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
 
-        mock_chat_anthropic.return_value = mock_llm
+            mock_chat_anthropic.return_value = mock_llm
 
-        llm = ClaudeLLM(name="TestClaude", role=Role.JUDGE, system_prompt="Test prompt")
-        response = await llm.generate_structured_response(
-            "What is the answer?", TestResponse
-        )
+            llm = ClaudeLLM(
+                name="TestClaude", role=Role.JUDGE, system_prompt="Test prompt"
+            )
+            response = await llm.generate_structured_response(
+                "What is the answer?", TestResponse
+            )
 
-        assert isinstance(response, TestResponse)
-        assert response.answer == "Yes"
-        assert response.reasoning == "Because it's correct"
+            assert isinstance(response, TestResponse)
+            assert response.answer == "Yes"
+            assert response.reasoning == "Because it's correct"
 
-        # Verify metadata was stored
-        metadata = assert_metadata_structure(
-            llm, expected_provider="claude", expected_role=Role.JUDGE
-        )
-        assert metadata["model"] == "claude-sonnet-4-5-20250929"
-        assert metadata["structured_output"] is True
-        assert_response_timing(metadata)
+            # Verify metadata was stored
+            metadata = assert_metadata_structure(
+                llm, expected_provider="claude", expected_role=Role.JUDGE
+            )
+            assert metadata["model"] == "claude-sonnet-4-5-20250929"
+            assert metadata["structured_output"] is True
+            assert_response_timing(metadata)
 
     @pytest.mark.asyncio
-    @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
-    @patch("llm_clients.claude_llm.ChatAnthropic")
-    async def test_generate_structured_response_with_complex_model(
-        self, mock_chat_anthropic
-    ):
+    @pytest.mark.usefixtures("mock_claude_config", "mock_claude_model")
+    async def test_generate_structured_response_with_complex_model(self):
         """Test structured response with nested Pydantic model."""
         from pydantic import BaseModel, Field
 
-        mock_llm = MagicMock()
-        mock_llm.model = "claude-sonnet-4-5-20250929"
+        with patch("llm_clients.claude_llm.ChatAnthropic") as mock_chat_anthropic:
+            mock_llm = MagicMock()
+            mock_llm.model = "claude-sonnet-4-5-20250929"
 
-        # Define nested Pydantic models
-        class SubScore(BaseModel):
-            value: int = Field(description="Score value")
-            justification: str = Field(description="Justification")
+            # Define nested Pydantic models
+            class SubScore(BaseModel):
+                value: int = Field(description="Score value")
+                justification: str = Field(description="Justification")
 
-        class ComplexResponse(BaseModel):
-            overall_score: int = Field(description="Overall score")
-            sub_scores: list[SubScore] = Field(description="Sub scores")
-            summary: str = Field(description="Summary")
+            class ComplexResponse(BaseModel):
+                overall_score: int = Field(description="Overall score")
+                sub_scores: list[SubScore] = Field(description="Sub scores")
+                summary: str = Field(description="Summary")
 
-        # Create test response
-        test_response = ComplexResponse(
-            overall_score=85,
-            sub_scores=[
-                SubScore(value=90, justification="Good quality"),
-                SubScore(value=80, justification="Needs improvement"),
-            ],
-            summary="Overall good performance",
-        )
+            # Create test response
+            test_response = ComplexResponse(
+                overall_score=85,
+                sub_scores=[
+                    SubScore(value=90, justification="Good quality"),
+                    SubScore(value=80, justification="Needs improvement"),
+                ],
+                summary="Overall good performance",
+            )
 
-        # Mock structured LLM
-        mock_structured_llm = MagicMock()
-        mock_structured_llm.ainvoke = AsyncMock(return_value=test_response)
-        mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            # Mock structured LLM
+            mock_structured_llm = MagicMock()
+            mock_structured_llm.ainvoke = AsyncMock(return_value=test_response)
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
 
-        mock_chat_anthropic.return_value = mock_llm
+            mock_chat_anthropic.return_value = mock_llm
 
-        llm = ClaudeLLM(name="TestClaude", role=Role.JUDGE)
-        response = await llm.generate_structured_response(
-            "Evaluate this.", ComplexResponse
-        )
+            llm = ClaudeLLM(name="TestClaude", role=Role.JUDGE)
+            response = await llm.generate_structured_response(
+                "Evaluate this.", ComplexResponse
+            )
 
-        # Verify complex structure
-        assert isinstance(response, ComplexResponse)
-        assert response.overall_score == 85
-        assert len(response.sub_scores) == 2
-        assert response.sub_scores[0].value == 90
-        assert response.summary == "Overall good performance"
+            # Verify complex structure
+            assert isinstance(response, ComplexResponse)
+            assert response.overall_score == 85
+            assert len(response.sub_scores) == 2
+            assert response.sub_scores[0].value == 90
+            assert response.summary == "Overall good performance"
 
     @pytest.mark.asyncio
-    @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
-    @patch("llm_clients.claude_llm.ChatAnthropic")
-    async def test_generate_structured_response_error(self, mock_chat_anthropic):
+    @pytest.mark.usefixtures("mock_claude_config", "mock_claude_model")
+    async def test_generate_structured_response_error(self):
         """Test error handling in structured response generation."""
         from pydantic import BaseModel
 
-        mock_llm = MagicMock()
-        mock_llm.model = "claude-sonnet-4-5-20250929"
+        with patch("llm_clients.claude_llm.ChatAnthropic") as mock_chat_anthropic:
+            mock_llm = MagicMock()
+            mock_llm.model = "claude-sonnet-4-5-20250929"
 
-        class TestResponse(BaseModel):
-            answer: str
+            class TestResponse(BaseModel):
+                answer: str
 
-        # Mock structured LLM to raise error
-        mock_structured_llm = MagicMock()
-        mock_structured_llm.ainvoke = AsyncMock(
-            side_effect=Exception("Structured output failed")
-        )
-        mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            # Mock structured LLM to raise error
+            mock_structured_llm = MagicMock()
+            mock_structured_llm.ainvoke = AsyncMock(
+                side_effect=Exception("Structured output failed")
+            )
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
 
-        mock_chat_anthropic.return_value = mock_llm
+            mock_chat_anthropic.return_value = mock_llm
 
-        llm = ClaudeLLM(name="TestClaude", role=Role.JUDGE)
+            llm = ClaudeLLM(name="TestClaude", role=Role.JUDGE)
 
-        with pytest.raises(RuntimeError) as exc_info:
-            await llm.generate_structured_response("Test", TestResponse)
+            with pytest.raises(RuntimeError) as exc_info:
+                await llm.generate_structured_response("Test", TestResponse)
 
-        assert "Error generating structured response" in str(exc_info.value)
-        assert "Structured output failed" in str(exc_info.value)
+            assert "Error generating structured response" in str(exc_info.value)
+            assert "Structured output failed" in str(exc_info.value)
 
-        # Verify error metadata was stored
-        metadata = llm.get_last_response_metadata()
-        assert "error" in metadata
-        assert "Structured output failed" in metadata["error"]
+            # Verify error metadata was stored
+            metadata = llm.get_last_response_metadata()
+            assert "error" in metadata
+            assert "Structured output failed" in metadata["error"]
 
     @pytest.mark.asyncio
-    @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
-    @patch("llm_clients.claude_llm.ChatAnthropic")
-    async def test_structured_response_metadata_fields(self, mock_chat_anthropic):
+    @pytest.mark.usefixtures("mock_claude_config", "mock_claude_model")
+    async def test_structured_response_metadata_fields(self):
         """Test that structured response metadata includes correct fields."""
         from pydantic import BaseModel
 
-        mock_llm = MagicMock()
-        mock_llm.model = "claude-sonnet-4-5-20250929"
+        with patch("llm_clients.claude_llm.ChatAnthropic") as mock_chat_anthropic:
+            mock_llm = MagicMock()
+            mock_llm.model = "claude-sonnet-4-5-20250929"
 
-        class SimpleResponse(BaseModel):
-            result: str
+            class SimpleResponse(BaseModel):
+                result: str
 
-        test_response = SimpleResponse(result="success")
+            test_response = SimpleResponse(result="success")
 
-        mock_structured_llm = MagicMock()
-        mock_structured_llm.ainvoke = AsyncMock(return_value=test_response)
-        mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            mock_structured_llm = MagicMock()
+            mock_structured_llm.ainvoke = AsyncMock(return_value=test_response)
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
 
-        mock_chat_anthropic.return_value = mock_llm
+            mock_chat_anthropic.return_value = mock_llm
 
-        llm = ClaudeLLM(name="TestClaude", role=Role.JUDGE)
-        await llm.generate_structured_response("Test", SimpleResponse)
+            llm = ClaudeLLM(name="TestClaude", role=Role.JUDGE)
+            await llm.generate_structured_response("Test", SimpleResponse)
 
-        metadata = llm.get_last_response_metadata()
+            metadata = llm.get_last_response_metadata()
 
-        # Verify required fields
-        assert metadata["provider"] == "claude"
-        assert metadata["structured_output"] is True
-        assert metadata["response_id"] is None
-        assert_iso_timestamp(metadata["timestamp"])
-        assert_response_timing(metadata)
+            # Verify required fields
+            assert metadata["provider"] == "claude"
+            assert metadata["structured_output"] is True
+            assert metadata["response_id"] is None
+            assert_iso_timestamp(metadata["timestamp"])
+            assert_response_timing(metadata)

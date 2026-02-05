@@ -585,16 +585,13 @@ class TestOllamaLLM(TestLLMBase):
         assert "Assistant: How are you?" in call_args
         assert "Assistant:" in call_args
 
+    @pytest.mark.usefixtures("mock_ollama_model")
     def test_get_last_response_metadata_returns_copy(self):
         """Test that get_last_response_metadata returns a copy."""
         from llm_clients.ollama_llm import OllamaLLM
 
-        with patch("llm_clients.ollama_llm.LangChainOllamaLLM") as mock_ollama:
-            mock_instance = MagicMock()
-            mock_ollama.return_value = mock_instance
-
-            llm = OllamaLLM(name="test-ollama", role=Role.PROVIDER)
-            assert_metadata_copy_behavior(llm)
+        llm = OllamaLLM(name="test-ollama", role=Role.PROVIDER)
+        assert_metadata_copy_behavior(llm)
 
     @pytest.mark.asyncio
     @patch("llm_clients.ollama_llm.LangChainOllamaLLM")

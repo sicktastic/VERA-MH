@@ -31,7 +31,7 @@ def mock_all_api_keys():
 class TestLLMFactory:
     """Unit tests for LLMFactory class."""
 
-    @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
+    @pytest.mark.usefixtures("mock_claude_config", "mock_claude_model")
     def test_create_claude_llm(self):
         """Test that factory correctly creates Claude LLM instance."""
         # Arrange
@@ -52,7 +52,7 @@ class TestLLMFactory:
         assert llm.model_name == model_name
         assert llm.role == Role.PROVIDER
 
-    @patch("llm_clients.openai_llm.Config.OPENAI_API_KEY", "test-key")
+    @pytest.mark.usefixtures("mock_openai_config", "mock_openai_model")
     def test_create_openai_llm(self):
         """Test that factory correctly creates OpenAI LLM instance."""
         model_name = "gpt-4"
@@ -71,7 +71,7 @@ class TestLLMFactory:
         assert llm.system_prompt == system_prompt
         assert llm.model_name == model_name
 
-    @patch("llm_clients.gemini_llm.Config.GOOGLE_API_KEY", "test-key")
+    @pytest.mark.usefixtures("mock_gemini_config", "mock_gemini_model")
     def test_create_gemini_llm(self):
         """Test that factory correctly creates Gemini LLM instance."""
         model_name = "gemini-pro"
@@ -90,6 +90,7 @@ class TestLLMFactory:
         assert llm.system_prompt == system_prompt
         assert llm.model_name == model_name
 
+    @pytest.mark.usefixtures("mock_ollama_model")
     def test_create_ollama_llm(self):
         """Test that factory correctly creates Ollama LLM instance."""
         model_name = "ollama-llama-3"
@@ -207,7 +208,7 @@ class TestLLMFactory:
         assert isinstance(llm, OpenAILLM)
         assert llm.model_name == model_name
 
-    @patch("llm_clients.gemini_llm.Config.GOOGLE_API_KEY", "test-key")
+    @pytest.mark.usefixtures("mock_gemini_config", "mock_gemini_model")
     def test_create_gemini_llm_with_google_prefix(self):
         """Test that factory correctly identifies Gemini models with 'google' prefix."""
         model_name = "google-gemini-ultra"
@@ -220,6 +221,7 @@ class TestLLMFactory:
         assert isinstance(llm, GeminiLLM)
         assert llm.model_name == model_name
 
+    @pytest.mark.usefixtures("mock_ollama_model")
     def test_create_llama_llm_with_ollama_prefix(self):
         """Test that factory correctly identifies Ollama models with 'ollama' prefix."""
         model_name = "ollama-llama-3"
@@ -261,7 +263,7 @@ class TestLLMFactory:
             assert isinstance(ollama_llm, OllamaLLM)
             assert isinstance(azure_llm, AzureLLM)
 
-    @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
+    @pytest.mark.usefixtures("mock_claude_config", "mock_claude_model")
     def test_create_judge_llm_claude(self):
         """Test that create_judge_llm correctly creates Claude JudgeLLM instance."""
         from llm_clients.llm_interface import JudgeLLM
@@ -280,7 +282,7 @@ class TestLLMFactory:
         assert llm.system_prompt == system_prompt
         assert llm.model_name == model_name
 
-    @patch("llm_clients.openai_llm.Config.OPENAI_API_KEY", "test-key")
+    @pytest.mark.usefixtures("mock_openai_config", "mock_openai_model")
     def test_create_judge_llm_openai(self):
         """Test that create_judge_llm correctly creates OpenAI JudgeLLM instance."""
         from llm_clients.llm_interface import JudgeLLM
@@ -299,7 +301,7 @@ class TestLLMFactory:
         assert llm.system_prompt == system_prompt
         assert llm.model_name == model_name
 
-    @patch("llm_clients.gemini_llm.Config.GOOGLE_API_KEY", "test-key")
+    @pytest.mark.usefixtures("mock_gemini_config", "mock_gemini_model")
     def test_create_judge_llm_gemini(self):
         """Test that create_judge_llm correctly creates Gemini JudgeLLM instance."""
         from llm_clients.llm_interface import JudgeLLM

@@ -128,7 +128,8 @@ class TestAzureLLM(TestJudgeLLMBase):
 
             assert "AZURE_ENDPOINT not found" in str(exc_info.value)
 
-    def test_init_with_default_model(self, mock_azure_config, mock_azure_model):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    def test_init_with_default_model(self):
         """Test initialization with default model from config."""
         llm = AzureLLM(name="TestAzure", role=Role.PERSONA, system_prompt="Test prompt")
 
@@ -137,7 +138,8 @@ class TestAzureLLM(TestJudgeLLMBase):
         assert llm.model_name == "gpt-4"
         assert llm.last_response_metadata == {}
 
-    def test_init_with_custom_model(self, mock_azure_config, mock_azure_model):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    def test_init_with_custom_model(self):
         """Test initialization with custom model name instead of config default."""
         llm = AzureLLM(
             name="TestAzure", role=Role.PERSONA, model_name="azure-some-made-up-model"
@@ -145,89 +147,107 @@ class TestAzureLLM(TestJudgeLLMBase):
 
         assert llm.model_name == "some-made-up-model"  # azure- prefix should be removed
 
-    def test_init_with_kwargs(self, mock_azure_config, mock_azure_model):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    def test_init_with_kwargs(self):
         """Test initialization with additional kwargs."""
-        AzureLLM(
-            name="TestAzure",
-            role=Role.PERSONA,
-            temperature=0.5,
-            max_tokens=500,
-            top_p=0.9,
-        )
+        with patch("llm_clients.azure_llm.AzureAIChatCompletionsModel") as mock_model:
+            AzureLLM(
+                name="TestAzure",
+                role=Role.PERSONA,
+                temperature=0.5,
+                max_tokens=500,
+                top_p=0.9,
+            )
 
-        # Verify kwargs were passed to AzureAIChatCompletionsModel
-        call_kwargs = mock_azure_model.call_args[1]
-        assert call_kwargs["temperature"] == 0.5
-        assert call_kwargs["max_tokens"] == 500
-        assert call_kwargs["top_p"] == 0.9
+            # Verify kwargs were passed to AzureAIChatCompletionsModel
+            call_kwargs = mock_model.call_args[1]
+            assert call_kwargs["temperature"] == 0.5
+            assert call_kwargs["max_tokens"] == 500
+            assert call_kwargs["top_p"] == 0.9
 
-    def test_init_with_api_version(self, mock_azure_config, mock_azure_model):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    def test_init_with_api_version(self):
         """Test initialization with API version from config."""
-        with patch(
-            "llm_clients.azure_llm.Config.AZURE_API_VERSION", "2024-05-01-preview"
+        with (
+            patch(
+                "llm_clients.azure_llm.Config.AZURE_API_VERSION",
+                "2024-05-01-preview",
+            ),
+            patch("llm_clients.azure_llm.AzureAIChatCompletionsModel") as mock_model,
         ):
             llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
 
             assert llm.api_version == "2024-05-01-preview"
-            call_kwargs = mock_azure_model.call_args[1]
+            call_kwargs = mock_model.call_args[1]
             assert call_kwargs["api_version"] == "2024-05-01-preview"
 
-    def test_init_with_default_api_version(self, mock_azure_config, mock_azure_model):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    def test_init_with_default_api_version(self):
         """Test initialization with default API version when not configured."""
-        with patch("llm_clients.azure_llm.Config.AZURE_API_VERSION", None):
+        with (
+            patch("llm_clients.azure_llm.Config.AZURE_API_VERSION", None),
+            patch("llm_clients.azure_llm.AzureAIChatCompletionsModel") as mock_model,
+        ):
             llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
 
             assert llm.api_version == AzureLLM.DEFAULT_API_VERSION
-            call_kwargs = mock_azure_model.call_args[1]
+            call_kwargs = mock_model.call_args[1]
             assert call_kwargs["api_version"] == AzureLLM.DEFAULT_API_VERSION
 
-    def test_init_strips_endpoint_trailing_slash(
-        self, mock_azure_config, mock_azure_model
-    ):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    def test_init_strips_endpoint_trailing_slash(self):
         """Test that endpoint trailing slash is removed."""
-        with patch(
-            "llm_clients.azure_llm.Config.AZURE_ENDPOINT",
-            "https://test.openai.azure.com/",
+        with (
+            patch(
+                "llm_clients.azure_llm.Config.AZURE_ENDPOINT",
+                "https://test.openai.azure.com/",
+            ),
+            patch("llm_clients.azure_llm.AzureAIChatCompletionsModel") as mock_model,
         ):
             llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
 
             assert llm.endpoint == "https://test.openai.azure.com"
-            call_kwargs = mock_azure_model.call_args[1]
+            call_kwargs = mock_model.call_args[1]
             assert call_kwargs["endpoint"] == "https://test.openai.azure.com"
 
-    def test_init_adds_models_suffix_for_ai_foundry(
-        self, mock_azure_config, mock_azure_model
-    ):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    def test_init_adds_models_suffix_for_ai_foundry(self):
         """Test that /models suffix is added for Azure AI Foundry endpoints."""
-        with patch(
-            "llm_clients.azure_llm.Config.AZURE_ENDPOINT",
-            "https://test.services.ai.azure.com",
+        with (
+            patch(
+                "llm_clients.azure_llm.Config.AZURE_ENDPOINT",
+                "https://test.services.ai.azure.com",
+            ),
+            patch("llm_clients.azure_llm.AzureAIChatCompletionsModel") as mock_model,
         ):
             llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
 
             assert llm.endpoint == "https://test.services.ai.azure.com/models"
-            call_kwargs = mock_azure_model.call_args[1]
+            call_kwargs = mock_model.call_args[1]
             assert (
                 call_kwargs["endpoint"] == "https://test.services.ai.azure.com/models"
             )
 
-    def test_init_does_not_duplicate_models_suffix(
-        self, mock_azure_config, mock_azure_model
-    ):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    def test_init_does_not_duplicate_models_suffix(self):
         """Test that /models suffix is not duplicated if already present."""
-        with patch(
-            "llm_clients.azure_llm.Config.AZURE_ENDPOINT",
-            "https://test.services.ai.azure.com/models",
+        with (
+            patch(
+                "llm_clients.azure_llm.Config.AZURE_ENDPOINT",
+                "https://test.services.ai.azure.com/models",
+            ),
+            patch("llm_clients.azure_llm.AzureAIChatCompletionsModel") as mock_model,
         ):
             llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
 
             assert llm.endpoint == "https://test.services.ai.azure.com/models"
-            call_kwargs = mock_azure_model.call_args[1]
+            call_kwargs = mock_model.call_args[1]
             assert (
                 call_kwargs["endpoint"] == "https://test.services.ai.azure.com/models"
             )
 
-    def test_init_invalid_endpoint_raises_error(self, mock_azure_config):
+    @pytest.mark.usefixtures("mock_azure_config")
+    def test_init_invalid_endpoint_raises_error(self):
         """Test that non-HTTPS endpoint raises ValueError."""
         with (
             patch(
@@ -241,7 +261,8 @@ class TestAzureLLM(TestJudgeLLMBase):
 
             assert "must start with 'https://'" in str(exc_info.value)
 
-    def test_init_invalid_endpoint_pattern_raises_error(self, mock_azure_config):
+    @pytest.mark.usefixtures("mock_azure_config")
+    def test_init_invalid_endpoint_pattern_raises_error(self):
         """Test that endpoint with unexpected pattern raises ValueError."""
         with (
             patch(
@@ -447,14 +468,14 @@ class TestAzureLLM(TestJudgeLLMBase):
         metadata = llm.get_last_response_metadata()
         assert_response_timing(metadata)
 
-    def test_get_last_response_metadata_returns_copy(
-        self, mock_azure_config, mock_azure_model
-    ):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    def test_get_last_response_metadata_returns_copy(self):
         """Test that get_last_response_metadata returns a copy."""
         llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
         assert_metadata_copy_behavior(llm)
 
-    def test_set_system_prompt(self, mock_azure_config, mock_azure_model):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    def test_set_system_prompt(self):
         """Test set_system_prompt method."""
         llm = AzureLLM(
             role=Role.PERSONA,
@@ -468,125 +489,131 @@ class TestAzureLLM(TestJudgeLLMBase):
         assert llm.system_prompt == "Updated prompt"
 
     @pytest.mark.asyncio
-    async def test_generate_structured_response_success(
-        self, mock_azure_config, mock_azure_model
-    ):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    async def test_generate_structured_response_success(self):
         """Test successful structured response generation."""
-        mock_llm = MagicMock()
+        with patch("llm_clients.azure_llm.AzureAIChatCompletionsModel") as mock_model:
+            mock_llm = MagicMock()
 
-        # Create a test Pydantic model
-        class TestResponse(BaseModel):
-            answer: str = Field(description="The answer")
-            reasoning: str = Field(description="The reasoning")
+            # Create a test Pydantic model
+            class TestResponse(BaseModel):
+                answer: str = Field(description="The answer")
+                reasoning: str = Field(description="The reasoning")
 
-        # Mock structured LLM
-        mock_structured_llm = MagicMock()
-        test_response = TestResponse(answer="Yes", reasoning="Because it's correct")
-        mock_structured_llm.ainvoke = AsyncMock(return_value=test_response)
-        mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            # Mock structured LLM
+            mock_structured_llm = MagicMock()
+            test_response = TestResponse(answer="Yes", reasoning="Because it's correct")
+            mock_structured_llm.ainvoke = AsyncMock(return_value=test_response)
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
 
-        mock_azure_model.return_value = mock_llm
+            mock_model.return_value = mock_llm
 
-        llm = AzureLLM(name="TestAzure", role=Role.PERSONA, system_prompt="Test prompt")
-        response = await llm.generate_structured_response(
-            "What is the answer?", TestResponse
-        )
+            llm = AzureLLM(
+                name="TestAzure", role=Role.PERSONA, system_prompt="Test prompt"
+            )
+            response = await llm.generate_structured_response(
+                "What is the answer?", TestResponse
+            )
 
-        assert isinstance(response, TestResponse)
-        assert response.answer == "Yes"
-        assert response.reasoning == "Because it's correct"
+            assert isinstance(response, TestResponse)
+            assert response.answer == "Yes"
+            assert response.reasoning == "Because it's correct"
 
-        # Verify metadata was stored
-        metadata = assert_metadata_structure(
-            llm, expected_provider="azure", expected_role=Role.PERSONA
-        )
-        assert metadata["model"] == "gpt-4"
-        assert metadata["structured_output"] is True
-        assert_response_timing(metadata)
+            # Verify metadata was stored
+            metadata = assert_metadata_structure(
+                llm, expected_provider="azure", expected_role=Role.PERSONA
+            )
+            assert metadata["model"] == "gpt-4"
+            assert metadata["structured_output"] is True
+            assert_response_timing(metadata)
 
     @pytest.mark.asyncio
-    async def test_generate_structured_response_error(
-        self, mock_azure_config, mock_azure_model
-    ):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    async def test_generate_structured_response_error(self):
         """Test error handling in structured response generation."""
-        mock_llm = MagicMock()
+        with patch("llm_clients.azure_llm.AzureAIChatCompletionsModel") as mock_model:
+            mock_llm = MagicMock()
 
-        class TestResponse(BaseModel):
-            answer: str
+            class TestResponse(BaseModel):
+                answer: str
 
-        # Mock structured LLM to raise error
-        mock_structured_llm = MagicMock()
-        mock_structured_llm.ainvoke = AsyncMock(
-            side_effect=Exception("Structured output failed")
-        )
-        mock_llm.with_structured_output = MagicMock(return_value=mock_structured_llm)
+            # Mock structured LLM to raise error
+            mock_structured_llm = MagicMock()
+            mock_structured_llm.ainvoke = AsyncMock(
+                side_effect=Exception("Structured output failed")
+            )
+            mock_llm.with_structured_output = MagicMock(
+                return_value=mock_structured_llm
+            )
 
-        mock_azure_model.return_value = mock_llm
+            mock_model.return_value = mock_llm
 
-        llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
+            llm = AzureLLM(name="TestAzure", role=Role.PERSONA)
 
-        with pytest.raises(RuntimeError) as exc_info:
-            await llm.generate_structured_response("Test", TestResponse)
+            with pytest.raises(RuntimeError) as exc_info:
+                await llm.generate_structured_response("Test", TestResponse)
 
-        assert "Error generating structured response" in str(exc_info.value)
-        assert "Structured output failed" in str(exc_info.value)
+            assert "Error generating structured response" in str(exc_info.value)
+            assert "Structured output failed" in str(exc_info.value)
 
-        # Verify error metadata was stored
-        metadata = llm.get_last_response_metadata()
-        assert "error" in metadata
-        assert "Structured output failed" in metadata["error"]
+            # Verify error metadata was stored
+            metadata = llm.get_last_response_metadata()
+            assert "error" in metadata
+            assert "Structured output failed" in metadata["error"]
 
     @pytest.mark.asyncio
-    async def test_generate_response_with_conversation_history(
-        self, mock_azure_config, mock_azure_model
-    ):
+    @pytest.mark.usefixtures("mock_azure_config", "mock_azure_model")
+    async def test_generate_response_with_conversation_history(self):
         """Test generate_response with conversation_history parameter."""
-        mock_llm = MagicMock()
+        with patch("llm_clients.azure_llm.AzureAIChatCompletionsModel") as mock_model:
+            mock_llm = MagicMock()
 
-        mock_response = create_mock_response(
-            text="Response with history",
-            response_id="chatcmpl-history",
-            token_usage={
-                "input_tokens": 50,
-                "output_tokens": 20,
-            },
-        )
+            mock_response = create_mock_response(
+                text="Response with history",
+                response_id="chatcmpl-history",
+                token_usage={
+                    "input_tokens": 50,
+                    "output_tokens": 20,
+                },
+            )
 
-        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
-        mock_azure_model.return_value = mock_llm
+            mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+            mock_model.return_value = mock_llm
 
-        llm = AzureLLM(name="TestAzure", role=Role.PERSONA, system_prompt="Test")
+            llm = AzureLLM(name="TestAzure", role=Role.PERSONA, system_prompt="Test")
 
-        # Provide conversation history
-        history = [
-            {
-                "turn": 1,
-                "speaker": Role.PERSONA,
-                "input": "Start",
-                "response": "Hello",
-                "early_termination": False,
-                "logging": {},
-            },
-            {
-                "turn": 2,
-                "speaker": Role.PROVIDER,
-                "input": "Hello",
-                "response": "Hi there",
-                "early_termination": False,
-                "logging": {},
-            },
-        ]
+            # Provide conversation history
+            history = [
+                {
+                    "turn": 1,
+                    "speaker": Role.PERSONA,
+                    "input": "Start",
+                    "response": "Hello",
+                    "early_termination": False,
+                    "logging": {},
+                },
+                {
+                    "turn": 2,
+                    "speaker": Role.PROVIDER,
+                    "input": "Hello",
+                    "response": "Hi there",
+                    "early_termination": False,
+                    "logging": {},
+                },
+            ]
 
-        response = await llm.generate_response(conversation_history=history)
+            response = await llm.generate_response(conversation_history=history)
 
-        assert response == "Response with history"
+            assert response == "Response with history"
 
-        # Verify ainvoke was called with correct messages
-        call_args = mock_llm.ainvoke.call_args
-        messages = call_args[0][0]
+            # Verify ainvoke was called with correct messages
+            call_args = mock_llm.ainvoke.call_args
+            messages = call_args[0][0]
 
-        # Should have: SystemMessage + 2 history messages
-        assert len(messages) == 3
+            # Should have: SystemMessage + 2 history messages
+            assert len(messages) == 3
 
     @pytest.mark.asyncio
     async def test_timestamp_format(

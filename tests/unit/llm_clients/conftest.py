@@ -255,6 +255,90 @@ def mock_google_api_key(monkeypatch):
     )
 
 
+@pytest.fixture
+def mock_claude_model():
+    """Fixture to patch ChatAnthropic for Claude tests."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("llm_clients.claude_llm.ChatAnthropic") as mock:
+        mock_llm = MagicMock()
+        mock_llm.model = "claude-sonnet-4-5-20250929"
+        mock.return_value = mock_llm
+        yield mock
+
+
+@pytest.fixture
+def mock_claude_config():
+    """Patch Claude configuration including API key.
+
+    Use this for Claude-specific tests that need config mocking.
+    """
+    from unittest.mock import patch
+
+    with patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key"):
+        yield
+
+
+@pytest.fixture
+def mock_gemini_model():
+    """Fixture to patch ChatGoogleGenerativeAI for Gemini tests."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("llm_clients.gemini_llm.ChatGoogleGenerativeAI") as mock:
+        mock_llm = MagicMock()
+        mock.return_value = mock_llm
+        yield mock
+
+
+@pytest.fixture
+def mock_gemini_config():
+    """Patch Gemini configuration including API key.
+
+    Use this for Gemini-specific tests that need config mocking.
+    """
+    from unittest.mock import patch
+
+    with patch("llm_clients.gemini_llm.Config.GOOGLE_API_KEY", "test-key"):
+        yield
+
+
+@pytest.fixture
+def mock_openai_model():
+    """Fixture to patch ChatOpenAI for OpenAI tests."""
+    from unittest.mock import MagicMock, patch
+
+    with patch("llm_clients.openai_llm.ChatOpenAI") as mock:
+        mock_llm = MagicMock()
+        mock.return_value = mock_llm
+        yield mock
+
+
+@pytest.fixture
+def mock_openai_config():
+    """Patch OpenAI configuration including API key.
+
+    Use this for OpenAI-specific tests that need config mocking.
+    """
+    from unittest.mock import patch
+
+    with patch("llm_clients.openai_llm.Config.OPENAI_API_KEY", "test-key"):
+        yield
+
+
+@pytest.fixture
+def mock_ollama_model():
+    """Fixture to patch LangChainOllamaLLM for Ollama tests.
+
+    Note: Ollama doesn't require API keys as it runs locally.
+    """
+    from unittest.mock import MagicMock, patch
+
+    with patch("llm_clients.ollama_llm.LangChainOllamaLLM") as mock:
+        mock_instance = MagicMock()
+        mock.return_value = mock_instance
+        yield mock
+
+
 # Note there is no need to mock the other LLM Client configs as Azure's is a bit complex
 @pytest.fixture
 def mock_azure_config():
