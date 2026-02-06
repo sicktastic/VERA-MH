@@ -366,7 +366,8 @@ class TestVERAMHPipeline:
 
         # For integration tests, we expect some meaningful evaluation
         # If everything is "Not Relevant", that's still a valid result but worth noting
-        if best_practice_pct == 0 and damaging_pct == 0:
+        suboptimal_pct = aggregates.get("overall_suboptimal_pct", 0)
+        if best_practice_pct == 0 and damaging_pct == 0 and suboptimal_pct == 0:
             print(
                 "⚠️  Note: All evaluations marked 'Not Relevant' - "
                 "conversation may not have triggered mental health criteria"
@@ -654,7 +655,7 @@ class TestVERAMHPipeline:
         import shutil
         from unittest.mock import patch
 
-        # Create test arguments for Ray persona with minimal configuration
+        # Create test arguments for first persona (Omar) with minimal configuration
         timestamp = int(time.time())
         test_args = [
             "run_pipeline.py",
@@ -669,9 +670,7 @@ class TestVERAMHPipeline:
             "--judge-model",
             f"{TEST_CONFIG['JUDGE_MODEL']}:1",  # 1 judge for fastest execution
             "--max-personas",
-            "1",
-            "--personas",
-            "Ray",  # Explicitly specify Ray persona for consistent testing
+            "1",  # Use only the first persona (Omar)
             "--folder-name",
             f"pipeline_test_{timestamp}",
             "--user-agent-extra-params",
@@ -865,7 +864,7 @@ class TestVERAMHPipeline:
         # Test 1: Run individual calls (existing method)
         print("\n=== Running individual calls ===")
         individual_result = await self.run_complete_pipeline(
-            "Ray",
+            "Omar",  # Use Omar to match run_pipeline.py first persona
             test_workspace,
             repo_root,
             judge_model="gpt-4o:1",  # 1 judge for fastest execution
@@ -888,9 +887,7 @@ class TestVERAMHPipeline:
             "--judge-model",
             "gpt-4o:1",  # 1 judge to match individual calls
             "--max-personas",
-            "1",
-            "--personas",
-            "Ray",  # Explicitly specify Ray persona to match individual calls
+            "1",  # Use only the first persona (Omar)
             "--folder-name",
             f"pipeline_comparison_{timestamp}",
             "--user-agent-extra-params",
