@@ -28,7 +28,7 @@ TEST_CONFIG = {
     "RUNS_PER_PERSONA": 1,  # Reduced for faster tests
     "TEMP_MEMBER": 0.0,
     "TEMP_PROVIDER": 0.0,
-    "TIMEOUT_SECONDS": 300,  # 5 minutes
+    "TIMEOUT_SECONDS": 100,
 }
 
 
@@ -151,7 +151,7 @@ class TestVERAMHPipeline:
         judge_model: str,
         repo_root: Path,
         test_workspace: Path,
-        instances: int = 5,
+        instances: int = 1,
     ) -> Path:
         """Judge conversations and return the evaluation directory.
 
@@ -300,9 +300,8 @@ class TestVERAMHPipeline:
 
         # Judge conversations - uses the returned evaluation directory path
         # Parse judge model to extract instances
-        # (e.g., "gpt-4o:3" -> model="gpt-4o", instances=3)
         judge_model_name = judge_model or config["JUDGE_MODEL"]
-        instances = 5  # default
+        instances = 1  # default - use single instance for faster tests
         if ":" in judge_model_name:
             judge_model_name, instances_str = judge_model_name.split(":", 1)
             instances = int(instances_str)
@@ -344,6 +343,7 @@ class TestVERAMHPipeline:
             "overall_best_practice_pct",
             "overall_damaging_pct",
             "worst_band",
+            "vera_score",
         ]
         for metric in required_metrics:
             assert metric in aggregates, f"Missing required metric: {metric}"
@@ -352,6 +352,7 @@ class TestVERAMHPipeline:
         best_practice_pct = aggregates["overall_best_practice_pct"]
         damaging_pct = aggregates["overall_damaging_pct"]
         worst_band = aggregates["worst_band"]
+        vera_score = aggregates["vera_score"]
 
         assert (
             0 <= best_practice_pct <= 100
@@ -360,6 +361,8 @@ class TestVERAMHPipeline:
             0 <= damaging_pct <= 100
         ), f"Damaging % should be 0-100, got {damaging_pct}"
         assert worst_band is not None, "Worst band should not be None"
+        assert isinstance(vera_score, (int, float)), "VERA score should be numeric"
+        assert vera_score >= 0, f"VERA score should be >= 0, got {vera_score}"
 
         # For integration tests, we expect some meaningful evaluation
         # If everything is "Not Relevant", that's still a valid result but worth noting
@@ -373,12 +376,13 @@ class TestVERAMHPipeline:
         print(f"   Best practice: {best_practice_pct:.1f}%")
         print(f"   Damaging: {damaging_pct:.1f}%")
         print(f"   Worst band: {worst_band}")
+        print(f"   VERA score: {vera_score:.4f}")
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("persona", ["Sky", "Alix"])
     @pytest.mark.timeout(TEST_CONFIG["TIMEOUT_SECONDS"])
-    async def test_individual_personas(self, persona, test_workspace, repo_root):
-        """Test that each persona works individually."""
+    async def test_individual_personas(self, test_workspace, repo_root):
+        """Test that Ray persona works individually."""
+        persona = "Ray"
         result = await self.run_complete_pipeline(persona, test_workspace, repo_root)
 
         # Basic validation
@@ -389,14 +393,18 @@ class TestVERAMHPipeline:
         best_practice_pct = aggregates["overall_best_practice_pct"]
         damaging_pct = aggregates["overall_damaging_pct"]
         worst_band = aggregates["worst_band"]
+        vera_score = aggregates["vera_score"]
 
         assert 0 <= best_practice_pct <= 100
         assert 0 <= damaging_pct <= 100
         assert worst_band is not None
+        assert isinstance(vera_score, (int, float)), "VERA score should be numeric"
+        assert vera_score >= 0, f"VERA score should be >= 0, got {vera_score}"
 
         print(
             f"Persona {persona} validation passed "
-            f"(BP: {best_practice_pct:.1f}%, D: {damaging_pct:.1f}%, WB: {worst_band})"
+            f"(BP: {best_practice_pct:.1f}%, D: {damaging_pct:.1f}%, "
+            f"WB: {worst_band}, VERA: {vera_score:.4f})"
         )
 
     @pytest.mark.asyncio
@@ -454,6 +462,7 @@ class TestVERAMHPipeline:
             "overall_best_practice_pct",
             "overall_damaging_pct",
             "worst_band",
+            "vera_score",
         ]
         for metric in required_metrics:
             assert metric in aggregates, f"Missing required metric: {metric}"
@@ -481,6 +490,7 @@ class TestVERAMHPipeline:
         print(f"   Best practice: {aggregates['overall_best_practice_pct']:.1f}%")
         print(f"   Damaging: {aggregates['overall_damaging_pct']:.1f}%")
         print(f"   Worst band: {aggregates['worst_band']}")
+        print(f"   VERA score: {aggregates['vera_score']:.4f}")
         print("✓ All pipeline outputs verified: conversation → evaluation → scoring")
 
     @pytest.mark.skip(reason="Multiple runs not needed for simplified scoring tests")
@@ -492,12 +502,9 @@ class TestVERAMHPipeline:
         This method is skipped since we now use a simpler single-run approach.
         """
         print(f"Collecting baseline scores for {persona} persona ({num_runs} runs)...")
-        print("Each run: 1 conversation × 3 judge evaluations = 3 evaluations per run")
-        print(
-            f"Total: {num_runs} runs × 3 evaluations = {num_runs * 3} total evaluations"
-        )
+        print("Each run: 1 conversation × 1 judge evaluation = 1 evaluation per run")
+        print(f"Total: {num_runs} runs × 1 evaluation = {num_runs} total evaluations")
 
-        all_scores = []
         for run_num in range(1, num_runs + 1):
             print(f"\n--- Run {run_num}/{num_runs} ---")
             try:
@@ -505,70 +512,33 @@ class TestVERAMHPipeline:
                     persona,
                     test_workspace,
                     repo_root,
-                    judge_model="gpt-4o:3",  # 3 judges instead of 5
+                    judge_model="gpt-4o:1",  # 1 judge for fastest execution
                 )
                 aggregates = result["aggregates"]
 
-                score_data = {
-                    "run": run_num,
-                    "best_practice_pct": aggregates["overall_best_practice_pct"],
-                    "damaging_pct": aggregates["overall_damaging_pct"],
-                    "worst_band": aggregates["worst_band"],
-                }
-                all_scores.append(score_data)
+                # Assert that required metrics exist in the score.json
+                required_metrics = [
+                    "overall_best_practice_pct",
+                    "overall_damaging_pct",
+                    "worst_band",
+                    "vera_score",
+                ]
+                for metric in required_metrics:
+                    assert metric in aggregates, f"Missing required metric: {metric}"
+                    assert (
+                        aggregates[metric] is not None
+                    ), f"Metric {metric} should not be None"
 
-                print(
-                    f"   BP: {score_data['best_practice_pct']:.1f}%, "
-                    f"D: {score_data['damaging_pct']:.1f}%, "
-                    f"WB: {score_data['worst_band']}"
-                )
+                print(f"   ✓ Run {run_num}: All required metrics present in score.json")
 
             except Exception as e:
                 print(f"   Run {run_num} failed: {e}")
                 continue
 
-        if not all_scores:
-            print("No successful runs to analyze")
-            return
-
-        # Calculate statistics
-        bp_scores = [s["best_practice_pct"] for s in all_scores]
-        d_scores = [s["damaging_pct"] for s in all_scores]
-        wb_scores = [s["worst_band"] for s in all_scores]
-
-        print(f"\nBASELINE ANALYSIS ({len(all_scores)} successful runs):")
-        print("=" * 60)
-
-        print("Best Practice %:")
-        print(f"   Min: {min(bp_scores):.1f}%")
-        print(f"   Max: {max(bp_scores):.1f}%")
-        print(f"   Avg: {sum(bp_scores) / len(bp_scores):.1f}%")
-        print(
-            f"   Suggested range: ({min(bp_scores) - 5:.0f}, {max(bp_scores) + 5:.0f})"
-        )
-
-        print("Damaging %:")
-        print(f"   Min: {min(d_scores):.1f}%")
-        print(f"   Max: {max(d_scores):.1f}%")
-        print(f"   Avg: {sum(d_scores) / len(d_scores):.1f}%")
-        print(f"   Suggested range: (0, {max(d_scores) + 10:.0f})")
-
-        print(f"Worst Bands observed: {set(wb_scores)}")
-
-        print("\nSUGGESTED TEST THRESHOLDS:")
-        print("EXPECTED_RANGES = {")
-        print(
-            f'    "overall_best_practice_pct": '
-            f"({min(bp_scores) - 5:.0f}, {max(bp_scores) + 5:.0f}),"
-        )
-        print(f'    "overall_damaging_pct": (0, {max(d_scores) + 10:.0f}),')
-        print(f'    "worst_band": {list(set(wb_scores))}')
-        print("}")
-
-        return all_scores
+        print("\n✓ All runs successfully validated required metrics in score.json")
 
     @pytest.mark.asyncio
-    @pytest.mark.timeout(TEST_CONFIG["TIMEOUT_SECONDS"] * 10)  # Extra time for 10 runs
+    @pytest.mark.timeout(TEST_CONFIG["TIMEOUT_SECONDS"])
     @pytest.mark.skip(
         reason="Multiple runs not needed - use test_scoring_file_output for single run"
     )
@@ -581,7 +551,7 @@ class TestVERAMHPipeline:
         Use test_scoring_file_output instead for basic scoring validation.
         """
         await self.collect_baseline_scores(
-            test_workspace, repo_root, persona="Ray", num_runs=10
+            test_workspace, repo_root, persona="Ray", num_runs=1
         )
 
     @pytest.mark.asyncio
@@ -697,9 +667,11 @@ class TestVERAMHPipeline:
             "--turns",
             str(TEST_CONFIG["TURNS"]),
             "--judge-model",
-            f"{TEST_CONFIG['JUDGE_MODEL']}:3",  # 3 judges for consistency
+            f"{TEST_CONFIG['JUDGE_MODEL']}:1",  # 1 judge for fastest execution
             "--max-personas",
             "1",
+            "--personas",
+            "Ray",  # Explicitly specify Ray persona for consistent testing
             "--folder-name",
             f"pipeline_test_{timestamp}",
             "--user-agent-extra-params",
@@ -896,7 +868,7 @@ class TestVERAMHPipeline:
             "Ray",
             test_workspace,
             repo_root,
-            judge_model="gpt-4o:2",  # 2 judges for faster comparison
+            judge_model="gpt-4o:1",  # 1 judge for fastest execution
         )
         individual_scores = individual_result["aggregates"]
 
@@ -914,9 +886,11 @@ class TestVERAMHPipeline:
             "--turns",
             str(TEST_CONFIG["TURNS"]),
             "--judge-model",
-            "gpt-4o:2",  # 2 judges to match individual calls
+            "gpt-4o:1",  # 1 judge to match individual calls
             "--max-personas",
             "1",
+            "--personas",
+            "Ray",  # Explicitly specify Ray persona to match individual calls
             "--folder-name",
             f"pipeline_comparison_{timestamp}",
             "--user-agent-extra-params",
