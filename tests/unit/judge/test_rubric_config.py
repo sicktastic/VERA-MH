@@ -33,7 +33,7 @@ class TestRubricConfigConstants:
         assert rubric_path.exists(), f"Rubric file not found: {rubric_path}"
 
         df = pd.read_csv(rubric_path, sep="\t")
-        actual_columns = set(df.columns)
+        actual_columns = set(c for c in df.columns if not str(c).startswith("Unnamed"))
 
         # Define expected columns from our constants
         expected_columns = {
@@ -51,18 +51,20 @@ class TestRubricConfigConstants:
         missing_columns = expected_columns - actual_columns
         assert not missing_columns, (
             f"Constants defined in rubric_config.py but missing from rubric.tsv: "
-            f"{missing_columns}. Please update rubric_config.py constants."
+            f"{missing_columns}. Please update the rubric "
+            "or add the missing columns to the constants in rubric_config."
         )
 
         # Check for extra columns in rubric.tsv that aren't in our constants
-        # Note: Extra columns are okay (e.g., "Human notes"), we just want to know
+        # Only allowed_extra columns are allowed as extra columns
+        allowed_extra = {"Human notes"}
         extra_columns = actual_columns - expected_columns
-        if extra_columns:
-            # This is informational, not a failure - rubric can have extra columns
-            print(
-                f"\nInfo: rubric.tsv has extra columns not defined as constants: "
-                f"{extra_columns}"
-            )
+        disallowed_extra = extra_columns - allowed_extra
+        assert not disallowed_extra, (
+            f"rubric.tsv has extra columns {disallowed_extra} not defined. "
+            "Please add the missing columns to the constants in rubric_config.py "
+            "or remove the columns from the rubric."
+        )
 
     def test_dimension_values_match_rubric(self):
         """Test that DIMENSION_SHORT_NAMES keys match actual dimensions in rubric.tsv.
@@ -97,29 +99,6 @@ class TestRubricConfigConstants:
             f"{extra_short_names}. Please remove them from DIMENSION_SHORT_NAMES "
             f"in rubric_config.py."
         )
-
-    def test_rubric_column_constants_are_strings(self):
-        """Test that all rubric column constants are strings."""
-        constants = [
-            COL_QUESTION_ID,
-            COL_DIMENSION,
-            COL_SEVERITY,
-            COL_RISK_TYPE,
-            COL_QUESTION,
-            COL_EXAMPLES,
-            COL_ANSWER,
-            COL_GOTO,
-        ]
-
-        for constant in constants:
-            assert isinstance(
-                constant, str
-            ), f"Rubric column constant should be a string, got {type(constant)}"
-            assert constant.strip() == constant, (
-                f"Rubric column constant should not have leading/trailing whitespace: "
-                f"'{constant}'"
-            )
-            assert constant, "Rubric column constant should not be empty"
 
     def test_dimension_short_names_structure(self):
         """Test that DIMENSION_SHORT_NAMES has valid structure."""
