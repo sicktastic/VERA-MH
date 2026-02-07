@@ -237,33 +237,19 @@ class TestConversationSimulator:
         assert internal_history_dicts == history2
         assert internal_history_dicts != history1
 
-    async def test_case_sensitive_termination_detection(self):
-        """Test that termination signals are detected (exact match required)."""
+    async def test_case_insensitive_termination(self):
+        """Test that termination signal is detected even if case doesn't match."""
         persona = MockLLM(
             name="persona", role=Role.PERSONA, responses=["Hello", "GOODBYE and thanks"]
         )
         agent = MockLLM(name="agent", role=Role.PROVIDER, responses=["Hi"] * 5)
         simulator = ConversationSimulator(persona=persona, agent=agent)
-        simulator.termination_signal = "GOODBYE"  # Must match exact case
+        simulator.termination_signal = "goodbye"
 
         history = await simulator.start_conversation(max_turns=10)
 
         assert len(history) == 3
         assert history[-1]["early_termination"] is True
-
-    async def test_case_insensitive_termination_failure(self):
-        """Test that termination signals are not detected if not exact match."""
-        persona = MockLLM(
-            name="persona", role=Role.PERSONA, responses=["Hello", "GOODBYE and thanks"]
-        )
-        agent = MockLLM(name="agent", role=Role.PROVIDER, responses=["Hi"] * 5)
-        simulator = ConversationSimulator(persona=persona, agent=agent)
-        simulator.termination_signal = "goodbye"  # Must match exact case
-
-        history = await simulator.start_conversation(max_turns=10)
-
-        assert len(history) == 10
-        assert all(not turn["early_termination"] for turn in history)
 
     async def test_max_total_words_stopping_condition(self):
         """Test that conversation stops when max_total_words is reached."""
