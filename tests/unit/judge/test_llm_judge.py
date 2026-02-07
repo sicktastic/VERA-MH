@@ -1004,7 +1004,7 @@ class TestDimensionScoring:
     async def test_determine_dimension_scores_not_relevant_via_assign_end_marker(
         self, rubric_config_factory
     ):
-        """Single answer with ASSIGN_END marker scores Not Relevant."""
+        """Single answer with ASSIGN_END marker all scores Not Relevant."""
         rubric_config = await rubric_config_factory(rubric_file="rubric_simple.tsv")
         judge = LLMJudge(
             judge_model="mock-llm",
