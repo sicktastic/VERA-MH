@@ -13,13 +13,13 @@ import pytest
 
 # Test configuration constants
 TEST_CONFIG = {
-    "MEMBER_MODEL": "gpt-4o",
+    "USER_MODEL": "gpt-4o",
     "PROVIDER_MODEL": "claude-opus-4-1-20250805",
     "JUDGE_MODEL": "gpt-4o",
     "JUDGE_INSTANCES": 1,  # Single instance for fastest test execution
     "TURNS": 6,  # Smaller for faster tests
     "RUNS_PER_PERSONA": 1,  # Reduced for faster tests
-    "TEMP_MEMBER": 0.0,
+    "TEMP_USER": 0.0,
     "TEMP_PROVIDER": 0.0,
     "TIMEOUT_SECONDS": 300,
 }
@@ -64,12 +64,12 @@ class TestVERAMHPipeline:
     async def run_generate_cli(
         self,
         persona_names: List[str],
-        member_model: str,
+        user_model: str,
         provider_model: str,
         conversations_root: Path,
         turns: int,
         runs: int,
-        temp_member: float,
+        temp_user: float,
         temp_provider: float,
     ) -> Path:
         """Run generate.py CLI and return the conversation directory path."""
@@ -82,7 +82,7 @@ class TestVERAMHPipeline:
             "python3",
             "generate.py",
             "--user-agent",
-            member_model,
+            user_model,
             "--provider-agent",
             provider_model,
             "--runs",
@@ -92,7 +92,7 @@ class TestVERAMHPipeline:
             "--folder-name",
             str(conversations_root),
             "--user-agent-extra-params",
-            f"temperature={temp_member}",
+            f"temperature={temp_user}",
             "--provider-agent-extra-params",
             f"temperature={temp_provider}",
             "--max-concurrent",
@@ -259,38 +259,6 @@ class TestVERAMHPipeline:
 
         return scores_data
 
-    def _build_pipeline_cli_args(
-        self,
-        folder_name: str,
-        config: Dict[str, Any] = None,
-        max_personas: int = 1,
-    ) -> List[str]:
-        """Build CLI arguments for run_pipeline.py to avoid duplication."""
-        if config is None:
-            config = TEST_CONFIG
-
-        return [
-            "run_pipeline.py",
-            "--user-agent",
-            config["MEMBER_MODEL"],
-            "--provider-agent",
-            config["PROVIDER_MODEL"],
-            "--runs",
-            str(config["RUNS_PER_PERSONA"]),
-            "--turns",
-            str(config["TURNS"]),
-            "--judge-model",
-            f"{config['JUDGE_MODEL']}:{config['JUDGE_INSTANCES']}",
-            "--max-personas",
-            str(max_personas),
-            "--folder-name",
-            folder_name,
-            "--user-agent-extra-params",
-            f"temperature={config['TEMP_MEMBER']}",
-            "--provider-agent-extra-params",
-            f"temperature={config['TEMP_PROVIDER']}",
-        ]
-
     def run_pipeline_cli(
         self,
         persona: str,
@@ -313,20 +281,31 @@ class TestVERAMHPipeline:
             judge_model_name, instances_str = judge_model_name.split(":", 1)
             instances = int(instances_str)
 
-        # Update config with judge model details for consistency
-        temp_config = config.copy()
-        temp_config["JUDGE_MODEL"] = judge_model_name
-        temp_config["JUDGE_INSTANCES"] = instances
-
-        # Build CLI command for run_pipeline.py using helper method
-        pipeline_args = self._build_pipeline_cli_args(
-            folder_name=folder_name,
-            config=temp_config,
-            max_personas=1,  # Limit to 1 persona for faster tests
-        )
-
-        # Prepend uv run python3 to the pipeline args
-        cmd = ["uv", "run", "python3"] + pipeline_args
+        # Build CLI command for run_pipeline.py
+        cmd = [
+            "uv",
+            "run",
+            "python3",
+            "run_pipeline.py",
+            "--user-agent",
+            config["USER_MODEL"],
+            "--provider-agent",
+            config["PROVIDER_MODEL"],
+            "--runs",
+            str(config["RUNS_PER_PERSONA"]),
+            "--turns",
+            str(config["TURNS"]),
+            "--judge-model",
+            f"{judge_model_name}:{instances}",
+            "--max-personas",
+            "1",  # Limit to 1 persona for faster tests
+            "--folder-name",
+            folder_name,
+            "--user-agent-extra-params",
+            f"temperature={config['TEMP_USER']}",
+            "--provider-agent-extra-params",
+            f"temperature={config['TEMP_PROVIDER']}",
+        ]
 
         # Run run_pipeline.py CLI
         original_cwd = os.getcwd()
@@ -413,12 +392,12 @@ class TestVERAMHPipeline:
         # Generate conversations using CLI
         conv_dir = await self.run_generate_cli(
             persona_names=[persona],
-            member_model=config["MEMBER_MODEL"],
+            user_model=config["USER_MODEL"],
             provider_model=config["PROVIDER_MODEL"],
             conversations_root=conversations_root,
             turns=config["TURNS"],
             runs=config["RUNS_PER_PERSONA"],
-            temp_member=config["TEMP_MEMBER"],
+            temp_user=config["TEMP_USER"],
             temp_provider=config["TEMP_PROVIDER"],
         )
 
@@ -448,9 +427,7 @@ class TestVERAMHPipeline:
         """Test the complete pipeline with a single persona."""
         persona = "Sky"
 
-        start_time = time.time()
         result = self.run_pipeline_cli(persona, test_workspace, repo_root)
-        time.time() - start_time
 
         # Assert structure exists
         assert isinstance(result, dict), "Result should be a dictionary"
@@ -474,12 +451,12 @@ class TestVERAMHPipeline:
         worst_band = aggregates["worst_band"]
         vera_score = aggregates["vera_score"]
 
-        assert 0 <= best_practice_pct <= 100, (
-            f"Best practice % should be 0-100, got {best_practice_pct}"
-        )
-        assert 0 <= damaging_pct <= 100, (
-            f"Damaging % should be 0-100, got {damaging_pct}"
-        )
+        assert (
+            0 <= best_practice_pct <= 100
+        ), f"Best practice % should be 0-100, got {best_practice_pct}"
+        assert (
+            0 <= damaging_pct <= 100
+        ), f"Damaging % should be 0-100, got {damaging_pct}"
         assert worst_band is not None, "Worst band should not be None"
         assert isinstance(vera_score, (int, float)), "VERA score should be numeric"
         assert vera_score >= 0, f"VERA score should be >= 0, got {vera_score}"
@@ -525,12 +502,12 @@ class TestVERAMHPipeline:
         conversations_root = test_workspace / "conversations"
         conv_dir = await self.run_generate_cli(
             persona_names=["Ray"],
-            member_model=TEST_CONFIG["MEMBER_MODEL"],
+            user_model=TEST_CONFIG["USER_MODEL"],
             provider_model=TEST_CONFIG["PROVIDER_MODEL"],
             conversations_root=conversations_root,
             turns=TEST_CONFIG["TURNS"],
             runs=TEST_CONFIG["RUNS_PER_PERSONA"],
-            temp_member=TEST_CONFIG["TEMP_MEMBER"],
+            temp_user=TEST_CONFIG["TEMP_USER"],
             temp_provider=TEST_CONFIG["TEMP_PROVIDER"],
         )
 
@@ -555,9 +532,9 @@ class TestVERAMHPipeline:
 
         # Verify that scoring produces valid output structure
         assert isinstance(score_result, dict), "Score result should be a dictionary"
-        assert "aggregates" in score_result, (
-            "Score result should contain 'aggregates' key"
-        )
+        assert (
+            "aggregates" in score_result
+        ), "Score result should contain 'aggregates' key"
 
         aggregates = score_result["aggregates"]
 
@@ -581,9 +558,9 @@ class TestVERAMHPipeline:
         with open(scores_file, "r") as f:
             file_content = json.load(f)
 
-        assert "aggregates" in file_content, (
-            "scores.json should contain 'aggregates' key"
-        )
+        assert (
+            "aggregates" in file_content
+        ), "scores.json should contain 'aggregates' key"
         for metric in required_metrics:
             assert metric in file_content["aggregates"], f"scores.json missing {metric}"
 
@@ -595,12 +572,12 @@ class TestVERAMHPipeline:
 
         conv_dir = await self.run_generate_cli(
             persona_names=["Ray"],
-            member_model=TEST_CONFIG["MEMBER_MODEL"],
+            user_model=TEST_CONFIG["USER_MODEL"],
             provider_model=TEST_CONFIG["PROVIDER_MODEL"],
             conversations_root=conversations_root,
             turns=TEST_CONFIG["TURNS"],
             runs=TEST_CONFIG["RUNS_PER_PERSONA"],
-            temp_member=TEST_CONFIG["TEMP_MEMBER"],
+            temp_user=TEST_CONFIG["TEMP_USER"],
             temp_provider=TEST_CONFIG["TEMP_PROVIDER"],
         )
 
@@ -640,9 +617,9 @@ class TestVERAMHPipeline:
                 readable_file = file_path
                 break
 
-        assert readable_file is not None, (
-            "Should have at least one readable conversation file"
-        )
+        assert (
+            readable_file is not None
+        ), "Should have at least one readable conversation file"
 
         # Validate file content - fail explicitly for JSON issues
         if readable_file.suffix == ".json":
@@ -652,7 +629,8 @@ class TestVERAMHPipeline:
                     conv_data = json.load(f)
             except json.JSONDecodeError as e:
                 raise AssertionError(
-                    f"Generated JSON conversation file {readable_file.name} is malformed: {e}"
+                    f"Generated JSON conversation file {readable_file.name} "
+                    f"is malformed: {e}"
                 ) from e
             except Exception as e:
                 raise AssertionError(
@@ -661,8 +639,8 @@ class TestVERAMHPipeline:
 
             # Validate JSON structure
             assert isinstance(conv_data, (dict, list)), (
-                f"JSON conversation file {readable_file.name} should contain a dictionary or list, "
-                f"got {type(conv_data).__name__}"
+                f"JSON conversation file {readable_file.name} should contain a "
+                f"dictionary or list, got {type(conv_data).__name__}"
             )
 
             # Additional JSON structure validation
@@ -671,23 +649,23 @@ class TestVERAMHPipeline:
                 expected_keys = ["conversation", "messages", "turns", "content"]
                 has_conversation_keys = any(key in conv_data for key in expected_keys)
                 assert has_conversation_keys, (
-                    f"JSON conversation file {readable_file.name} doesn't contain expected "
-                    f"conversation keys. Found keys: {list(conv_data.keys())}"
+                    f"JSON conversation file {readable_file.name} doesn't contain "
+                    f"expected conversation keys. Found keys: {list(conv_data.keys())}"
                 )
             elif isinstance(conv_data, list):
                 # If it's a list, it should not be empty and contain conversation data
-                assert len(conv_data) > 0, (
-                    f"JSON conversation file {readable_file.name} contains empty list"
-                )
+                assert (
+                    len(conv_data) > 0
+                ), f"JSON conversation file {readable_file.name} contains empty list"
 
         else:
             # Non-JSON files just need to be readable and non-empty
             try:
                 with open(readable_file, "r") as f:
                     content = f.read()
-                    assert len(content) > 0, (
-                        f"Conversation file {readable_file.name} should not be empty"
-                    )
+                    assert (
+                        len(content) > 0
+                    ), f"Conversation file {readable_file.name} should not be empty"
             except Exception as e:
                 raise AssertionError(
                     f"Failed to read conversation file {readable_file.name}: {e}"
@@ -704,12 +682,12 @@ class TestVERAMHPipeline:
         with pytest.raises(RuntimeError, match="Generate CLI failed"):
             await self.run_generate_cli(
                 persona_names=["Ray"],
-                member_model="invalid-model-name",
+                user_model="invalid-model-name",
                 provider_model=TEST_CONFIG["PROVIDER_MODEL"],
                 conversations_root=conversations_root,
                 turns=TEST_CONFIG["TURNS"],
                 runs=TEST_CONFIG["RUNS_PER_PERSONA"],
-                temp_member=TEST_CONFIG["TEMP_MEMBER"],
+                temp_user=TEST_CONFIG["TEMP_USER"],
                 temp_provider=TEST_CONFIG["TEMP_PROVIDER"],
             )
 
@@ -722,11 +700,27 @@ class TestVERAMHPipeline:
 
         # Create test arguments for first persona (Omar) with minimal configuration
         timestamp = int(time.time())
-        test_args = self._build_pipeline_cli_args(
-            folder_name=f"pipeline_test_{timestamp}",
-            config=TEST_CONFIG,
-            max_personas=1,
-        )
+        test_args = [
+            "run_pipeline.py",
+            "--user-agent",
+            TEST_CONFIG["USER_MODEL"],
+            "--provider-agent",
+            TEST_CONFIG["PROVIDER_MODEL"],
+            "--runs",
+            str(TEST_CONFIG["RUNS_PER_PERSONA"]),
+            "--turns",
+            str(TEST_CONFIG["TURNS"]),
+            "--judge-model",
+            f"{TEST_CONFIG['JUDGE_MODEL']}:{TEST_CONFIG['JUDGE_INSTANCES']}",
+            "--max-personas",
+            "1",  # Use only the first persona (Omar)
+            "--folder-name",
+            f"pipeline_test_{timestamp}",
+            "--user-agent-extra-params",
+            f"temperature={TEST_CONFIG['TEMP_USER']}",
+            "--provider-agent-extra-params",
+            f"temperature={TEST_CONFIG['TEMP_PROVIDER']}",
+        ]
 
         # Track directories that may be created for cleanup
         created_dirs = []
@@ -791,9 +785,9 @@ class TestVERAMHPipeline:
                         evaluations_base_dir = item
                         break
 
-                assert evaluations_base_dir is not None, (
-                    f"Should find evaluations directory. Found items: {os.listdir('.')}"
-                )
+                assert (
+                    evaluations_base_dir is not None
+                ), f"Should find evaluations directory. Found items: {os.listdir('.')}"
 
                 # Find the most recent evaluation subfolder inside evaluations/
                 for subitem in os.listdir(evaluations_base_dir):
@@ -827,19 +821,19 @@ class TestVERAMHPipeline:
                 expected_files = TEST_CONFIG["RUNS_PER_PERSONA"] * 1  # 1 persona
 
                 assert len(conv_files) == expected_files, (
-                    f"Conversations folder should contain exactly {expected_files} .txt file(s). "
-                    f"Found {len(conv_files)} files: {conv_files}, "
+                    f"Conversations folder should contain exactly {expected_files} "
+                    f".txt file(s). Found {len(conv_files)} files: {conv_files}, "
                     f"all folder contents: {os.listdir(conversations_dir)}"
                 )
 
                 # Validate evaluations folder contents
                 eval_files = os.listdir(evaluations_dir)
-                assert "results.csv" in eval_files, (
-                    f"Evaluations should contain results.csv, found: {eval_files}"
-                )
-                assert "scores.json" in eval_files, (
-                    f"Evaluations should contain scores.json, found: {eval_files}"
-                )
+                assert (
+                    "results.csv" in eval_files
+                ), f"Evaluations should contain results.csv, found: {eval_files}"
+                assert (
+                    "scores.json" in eval_files
+                ), f"Evaluations should contain scores.json, found: {eval_files}"
 
                 # Validate scores.json structure
                 scores_path = os.path.join(evaluations_dir, "scores.json")
@@ -847,9 +841,9 @@ class TestVERAMHPipeline:
                     scores_data = json.load(f)
 
                 # Check that scores have expected structure
-                assert "aggregates" in scores_data, (
-                    "scores.json should contain 'aggregates' key"
-                )
+                assert (
+                    "aggregates" in scores_data
+                ), "scores.json should contain 'aggregates' key"
 
                 aggregates = scores_data["aggregates"]
                 required_keys = [
@@ -858,18 +852,18 @@ class TestVERAMHPipeline:
                     "worst_band",
                 ]
                 for key in required_keys:
-                    assert key in aggregates, (
-                        f"scores.json aggregates should contain {key}"
-                    )
+                    assert (
+                        key in aggregates
+                    ), f"scores.json aggregates should contain {key}"
 
                 # Validate score ranges
                 bp_pct = aggregates["overall_best_practice_pct"]
                 dmg_pct = aggregates["overall_damaging_pct"]
                 worst_band = aggregates["worst_band"]
 
-                assert 0 <= bp_pct <= 100, (
-                    f"Best practice % should be 0-100, got {bp_pct}"
-                )
+                assert (
+                    0 <= bp_pct <= 100
+                ), f"Best practice % should be 0-100, got {bp_pct}"
                 assert 0 <= dmg_pct <= 100, f"Damaging % should be 0-100, got {dmg_pct}"
                 assert worst_band is not None, "Worst band should not be None"
 
@@ -917,11 +911,27 @@ class TestVERAMHPipeline:
 
         # Test 2: Run integrated pipeline
         timestamp = int(time.time())
-        test_args = self._build_pipeline_cli_args(
-            folder_name=f"pipeline_comparison_{timestamp}",
-            config=TEST_CONFIG,
-            max_personas=1,
-        )
+        test_args = [
+            "run_pipeline.py",
+            "--user-agent",
+            TEST_CONFIG["USER_MODEL"],
+            "--provider-agent",
+            TEST_CONFIG["PROVIDER_MODEL"],
+            "--runs",
+            str(TEST_CONFIG["RUNS_PER_PERSONA"]),
+            "--turns",
+            str(TEST_CONFIG["TURNS"]),
+            "--judge-model",
+            f"{TEST_CONFIG['JUDGE_MODEL']}:{TEST_CONFIG['JUDGE_INSTANCES']}",
+            "--max-personas",
+            "1",  # Use only the first persona (Omar)
+            "--folder-name",
+            f"pipeline_comparison_{timestamp}",
+            "--user-agent-extra-params",
+            f"temperature={TEST_CONFIG['TEMP_USER']}",
+            "--provider-agent-extra-params",
+            f"temperature={TEST_CONFIG['TEMP_PROVIDER']}",
+        ]
 
         # Track directories that may be created for cleanup
         created_dirs = []
@@ -948,9 +958,9 @@ class TestVERAMHPipeline:
                         evaluations_base_dir = item
                         break
 
-                assert evaluations_base_dir is not None, (
-                    f"Should find evaluations directory. Found items: {os.listdir('.')}"
-                )
+                assert (
+                    evaluations_base_dir is not None
+                ), f"Should find evaluations directory. Found items: {os.listdir('.')}"
 
                 # Find the most recent evaluation subfolder inside evaluations/
                 evaluations_dir = None
@@ -1004,26 +1014,18 @@ class TestVERAMHPipeline:
                             logger = logging.getLogger(__name__)
                             logger.warning(f"Failed to clean up {dir_path}: {e}")
 
-        # Compare results
-        individual_scores["overall_best_practice_pct"]
-        individual_scores["overall_damaging_pct"]
-        individual_scores["worst_band"]
-        pipeline_scores["overall_best_practice_pct"]
-        pipeline_scores["overall_damaging_pct"]
-        pipeline_scores["worst_band"]
-
-        # Both should produce valid results
+        # Compare results - both should produce valid results
         # (exact match not expected due to LLM variability)
         for scores, method in [
             (individual_scores, "individual"),
             (pipeline_scores, "run_pipeline"),
         ]:
-            assert 0 <= scores["overall_best_practice_pct"] <= 100, (
-                f"{method} BP% out of range"
-            )
-            assert 0 <= scores["overall_damaging_pct"] <= 100, (
-                f"{method} damaging% out of range"
-            )
+            assert (
+                0 <= scores["overall_best_practice_pct"] <= 100
+            ), f"{method} BP% out of range"
+            assert (
+                0 <= scores["overall_damaging_pct"] <= 100
+            ), f"{method} damaging% out of range"
             assert scores["worst_band"] is not None, f"{method} worst_band is None"
 
         # Note: We don't assert exact equality because:
