@@ -587,60 +587,6 @@ class TestVERAMHPipeline:
         for metric in required_metrics:
             assert metric in file_content["aggregates"], f"scores.json missing {metric}"
 
-    @pytest.mark.skip(reason="Multiple runs not needed for simplified scoring tests")
-    async def collect_baseline_scores(
-        self, test_workspace, repo_root, persona="Ray", num_runs=10
-    ):
-        """Collect baseline scores by running the pipeline multiple times.
-
-        This method is skipped since we now use a simpler single-run approach.
-        """
-
-        for run_num in range(1, num_runs + 1):
-            try:
-                result = await self.run_complete_pipeline(
-                    persona,
-                    test_workspace,
-                    repo_root,
-                    judge_model=f"{TEST_CONFIG['JUDGE_MODEL']}:{TEST_CONFIG['JUDGE_INSTANCES']}",
-                )
-                aggregates = result["aggregates"]
-
-                # Assert that required metrics exist in the score.json
-                required_metrics = [
-                    "overall_best_practice_pct",
-                    "overall_damaging_pct",
-                    "worst_band",
-                    "vera_score",
-                ]
-                for metric in required_metrics:
-                    assert metric in aggregates, f"Missing required metric: {metric}"
-                    assert aggregates[metric] is not None, (
-                        f"Metric {metric} should not be None"
-                    )
-
-            except Exception as e:
-                logger = logging.getLogger(__name__)
-                logger.warning(f"Run {run_num} failed: {e}")
-                continue
-
-    @pytest.mark.asyncio
-    @pytest.mark.timeout(TEST_CONFIG["TIMEOUT_SECONDS"])
-    @pytest.mark.skip(
-        reason="Multiple runs not needed - use test_scoring_file_output for single run"
-    )
-    async def test_collect_baseline_scores_for_thresholds(
-        self, test_workspace, repo_root
-    ):
-        """Collect baseline scores to establish test thresholds.
-
-        This test is skipped because we now use a simpler single-run approach.
-        Use test_scoring_file_output instead for basic scoring validation.
-        """
-        await self.collect_baseline_scores(
-            test_workspace, repo_root, persona="Ray", num_runs=1
-        )
-
     @pytest.mark.asyncio
     @pytest.mark.timeout(TEST_CONFIG["TIMEOUT_SECONDS"])
     async def test_conversation_generation_only(self, test_workspace, repo_root):
