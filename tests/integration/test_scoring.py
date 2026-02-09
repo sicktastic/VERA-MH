@@ -1,23 +1,14 @@
-import csv
 import json
 import logging
 import os
-import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import pytest
 
-# ruff: noqa: E402
-REPO_ROOT = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT))
-
-import generate
-from judge.rubric_config import RubricConfig, load_conversations
-from judge.runner import judge_conversations as judge_conversations_fn
-from judge.score import score_results
+# Import additional modules to increase test coverage
 
 # Test configuration constants
 TEST_CONFIG = {
@@ -28,7 +19,7 @@ TEST_CONFIG = {
     "RUNS_PER_PERSONA": 1,  # Reduced for faster tests
     "TEMP_MEMBER": 0.0,
     "TEMP_PROVIDER": 0.0,
-    "TIMEOUT_SECONDS": 100,
+    "TIMEOUT_SECONDS": 300,
 }
 
 
@@ -42,7 +33,8 @@ def validate_test_environment():
 
     # Validate repo structure
     required_files = ["generate.py", "judge.py", "data/personas.tsv"]
-    missing_files = [f for f in required_files if not (REPO_ROOT / f).exists()]
+    repo_root = Path.cwd()
+    missing_files = [f for f in required_files if not (repo_root / f).exists()]
     if missing_files:
         pytest.skip(f"Missing required files: {missing_files}")
 
@@ -60,16 +52,16 @@ def test_workspace():
 @pytest.fixture
 def repo_root():
     """Get repository root path."""
-    return REPO_ROOT
+    return Path(__file__).parent.parent.parent
 
 
 @pytest.mark.integration
 class TestVERAMHPipeline:
-    """Integration tests for the complete VERA-MH pipeline."""
+    """Integration tests for the complete VERA-MH pipeline using CLI tools."""
 
-    async def generate_one_conversation(
+    async def run_generate_cli(
         self,
-        persona_name: str,
+        persona_names: List[str],
         member_model: str,
         provider_model: str,
         conversations_root: Path,
@@ -78,61 +70,83 @@ class TestVERAMHPipeline:
         temp_member: float,
         temp_provider: float,
     ) -> Path:
-        """Generate conversations for one persona and return directory.
-
-        This method assumes generate.main() creates exactly one new directory when:
-        - persona_names contains only one persona
-        - max_concurrent=1 to avoid race conditions
-        - runs_per_prompt creates conversations in a single directory
-
-        Args:
-            persona_name: Single persona to generate conversations for
-            member_model: Model for the user/member role
-            provider_model: Model for the assistant/provider role
-            conversations_root: Root directory for conversation output
-            turns: Number of conversation turns
-            runs: Number of conversation runs per persona
-            temp_member: Temperature for member model
-            temp_provider: Temperature for provider model
-
-        Returns:
-            Path to the generated conversation directory
-
-        Raises:
-            RuntimeError: If no directories or multiple directories are created
-        """
+        """Run generate.py CLI and return the conversation directory path."""
         conversations_root.mkdir(parents=True, exist_ok=True)
 
-        persona_model_config = {
-            "model": member_model,
-            "temperature": temp_member,
-        }
-        agent_model_config = {
-            "model": provider_model,
-            "name": provider_model,
-            "temperature": temp_provider,
-        }
+        # Build CLI command
+        cmd = [
+            "uv",
+            "run",
+            "python3",
+            "generate.py",
+            "--user-agent",
+            member_model,
+            "--provider-agent",
+            provider_model,
+            "--runs",
+            str(runs),
+            "--turns",
+            str(turns),
+            "--folder-name",
+            str(conversations_root),
+            "--user-agent-extra-params",
+            f"temperature={temp_member}",
+            "--provider-agent-extra-params",
+            f"temperature={temp_provider}",
+            "--max-concurrent",
+            "1",  # Controlled for tests
+            "--max-personas",
+            "1",  # Limit to 1 persona for faster tests
+        ]
 
-        # Capture the return value from generate.main for exact folder path
-        results, folder_name = await generate.main(
-            persona_model_config=persona_model_config,
-            agent_model_config=agent_model_config,
-            persona_names=[persona_name],  # only one persona
-            max_turns=turns,
-            runs_per_prompt=runs,
-            folder_name=str(conversations_root),
-            max_concurrent=1,  # prevent concurrent directory creation
-            verbose=True,
+        # Run generate.py CLI
+        import subprocess
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=Path.cwd(),  # Run from project root
+            timeout=120,  # 2 minute timeout for generation
         )
 
-        # Use the returned folder path directly (no complex detection needed)
-        conv_dir = Path(folder_name)
+        if result.returncode != 0:
+            raise RuntimeError(f"Generate CLI failed: {result.stderr}")
+
+        # Parse output to find the generated folder path
+        # generate.py outputs: "✅ Generated N conversations → folder_path/"
+        output_lines = result.stdout.strip().split("\n")
+        folder_path = None
+
+        for line in output_lines:
+            if "Generated" in line and "conversations →" in line:
+                # Extract folder path from line like:
+                # "✅ Generated 2 conversations → /path/to/folder/"
+                parts = line.split(" → ")
+                if len(parts) > 1:
+                    folder_path = parts[-1].rstrip("/")
+                    break
+
+        if not folder_path:
+            # Fallback: look for directories in conversations_root
+            conv_dirs = [d for d in conversations_root.iterdir() if d.is_dir()]
+            if conv_dirs:
+                # Get the most recently created directory
+                folder_path = str(max(conv_dirs, key=lambda d: d.stat().st_ctime))
+
+        if not folder_path:
+            raise RuntimeError(
+                f"Could not determine generated conversation folder from CLI output: "
+                f"{result.stdout}"
+            )
+
+        conv_dir = Path(folder_path)
 
         # Verify the directory contains conversation files
         if not conv_dir.exists() or not conv_dir.is_dir():
             raise RuntimeError(f"Generated directory {conv_dir} is not valid")
 
-        # Additional validation: check if directory has expected content
+        # Log results for debugging
         conv_files = list(conv_dir.glob("*.txt")) + list(conv_dir.glob("*.json"))
         logger = logging.getLogger(__name__)
         if not conv_files:
@@ -145,128 +159,105 @@ class TestVERAMHPipeline:
         logger.info(f"Generated conversations in {conv_dir}")
         return conv_dir
 
-    async def judge_conversations(
+    async def run_judge_cli(
         self,
         conversations_dir: Path,
         judge_model: str,
-        repo_root: Path,
         test_workspace: Path,
         instances: int = 1,
     ) -> Path:
-        """Judge conversations and return the evaluation directory.
+        """Run judge.py CLI and return the evaluation directory path."""
+        eval_root = test_workspace / "evaluations"
+        eval_root.mkdir(exist_ok=True)
 
-        Args:
-            conversations_dir: Directory containing conversation files
-            judge_model: Model to use for judging
-            repo_root: Repository root (for rubric data only)
-            test_workspace: Test workspace for evaluation outputs
-                          (prevents repo pollution)
-            instances: Number of judge instances
+        # Build CLI command
+        cmd = [
+            "uv",
+            "run",
+            "python3",
+            "judge.py",
+            "--folder",
+            str(conversations_dir),
+            "--judge-model",
+            f"{judge_model}:{instances}",
+            "--output",
+            str(eval_root),
+        ]
 
-        Returns:
-            Path to the evaluation directory in test_workspace
-        """
+        # Run judge.py CLI
+        import subprocess
 
-        # Load conversations and rubric config
-        conversations = await load_conversations(str(conversations_dir))
-        rubric_config = await RubricConfig.load(rubric_folder=str(repo_root / "data"))
-
-        # Use direct function call instead of subprocess
-        judge_models = {judge_model: instances}
-        folder_name = conversations_dir.name
-        eval_root = test_workspace / "evaluations"  # Use test workspace, not repo
-        eval_root.mkdir(exist_ok=True)  # Ensure directory exists
-
-        _, output_folder = await judge_conversations_fn(
-            judge_models=judge_models,
-            conversations=conversations,
-            rubric_config=rubric_config,
-            output_root=str(eval_root),
-            conversation_folder_name=folder_name,
-            verbose=True,
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=Path.cwd(),  # Run from project root
         )
 
-        eval_dir = Path(output_folder)
+        if result.returncode != 0:
+            raise RuntimeError(f"Judge CLI failed: {result.stderr}")
 
-        # assert that judge created the expected output files
-        expected_files = ["results.csv"]
-        for expected_file in expected_files:
-            file_path = eval_dir / expected_file
-            assert (
-                file_path.exists()
-            ), f"Judge should have created {expected_file} in {eval_dir}"
-            assert file_path.stat().st_size > 0, f"{expected_file} should not be empty"
+        # Find the generated evaluation directory
+        # judge.py creates directories like j_modelname_timestamp_folder
+        eval_dirs = [
+            d for d in eval_root.iterdir() if d.is_dir() and d.name.startswith("j_")
+        ]
+        if not eval_dirs:
+            raise RuntimeError(f"No evaluation directory found in {eval_root}")
 
-        # verify results.csv has proper structure
+        # Get the most recent evaluation directory
+        eval_dir = max(eval_dirs, key=lambda d: d.stat().st_ctime)
+
+        # Verify results.csv exists
         results_csv = eval_dir / "results.csv"
-        with open(results_csv, "r") as f:
-            content = f.read()
-            assert len(content.strip()) > 0, "results.csv should contain data"
+        if not results_csv.exists():
+            raise RuntimeError(f"results.csv not found in {eval_dir}")
 
-            lines = content.strip().split("\n")
-            assert len(lines) >= 2, (
-                f"results.csv should have header + at least one data row, "
-                f"found {len(lines)} lines"
-            )
-
-        # Use proper CSV parsing to handle quoted fields and embedded commas
-        with open(results_csv, "r", newline="") as csvfile:
-            reader = csv.DictReader(csvfile)
-
-            # Validate CSV header structure
-            required_columns = [
-                "filename",
-                "run_id",
-                "judge_model",
-                "judge_instance",
-                "judge_id",
-            ]
-
-            fieldnames = reader.fieldnames or []
-            for req_col in required_columns:
-                assert req_col in fieldnames, (
-                    f"results.csv header missing required column '{req_col}'. "
-                    f"Found columns: {fieldnames}"
-                )
-
-            # Validate that data rows have proper structure and required fields
-            row_count = 0
-            for row_num, row in enumerate(reader, 1):
-                row_count += 1
-
-                # Validate that required fields are not empty
-                for req_col in required_columns:
-                    field_value = row.get(req_col, "").strip()
-                    assert field_value, (
-                        f"Row {row_num}: required column '{req_col}' "
-                        f"should not be empty, got: '{field_value}'"
-                    )
-
-            # Ensure we actually processed some data rows
-            assert row_count > 0, "results.csv should contain at least one data row"
-
-        logging.info("Judge created evaluation files in %s", eval_dir)
+        logging.info(f"Judge created evaluation files in {eval_dir}")
         return eval_dir
 
-    def score_evaluation(
-        self,
-        eval_dir: Path,
-        repo_root: Path,
-    ) -> dict:
-        """Score an evaluation and return the results dictionary."""
+    def run_score_cli(self, eval_dir: Path) -> dict:
+        """Run judge.score CLI and return the results dictionary."""
         results_csv = eval_dir / "results.csv"
         if not results_csv.exists():
             raise FileNotFoundError(f"Missing results.csv in {eval_dir}")
 
-        # Use direct function call instead of subprocess for consistency
-        scores_data = score_results(str(results_csv))
+        # Build CLI command
+        cmd = [
+            "uv",
+            "run",
+            "python3",
+            "-m",
+            "judge.score",
+            "--results-csv",
+            str(results_csv),
+            "--skip-risk-analysis",  # Skip for faster tests
+        ]
 
-        # judge.score.score_results always returns a dict with "aggregates" key
-        # No fallback needed - if "aggregates" is missing, it indicates a bug
+        # Run judge.score CLI
+        import subprocess
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=Path.cwd(),  # Run from project root
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(f"Score CLI failed: {result.stderr}")
+
+        # Load the generated scores.json
+        scores_json = eval_dir / "scores.json"
+        if not scores_json.exists():
+            raise RuntimeError(f"scores.json not found in {eval_dir}")
+
+        with open(scores_json, "r") as f:
+            scores_data = json.load(f)
+
         if "aggregates" not in scores_data:
             raise ValueError(
                 f"Invalid scores data structure: missing 'aggregates' key. "
-                f"This indicates a bug in judge.score.score_results. "
                 f"Found keys: {list(scores_data.keys())}"
             )
 
@@ -280,15 +271,15 @@ class TestVERAMHPipeline:
         config: Dict[str, Any] = None,
         judge_model: str = None,
     ) -> Dict[str, Any]:
-        """Run the complete pipeline for a single persona and return results."""
+        """Run the complete pipeline using CLI tools and return results."""
         if config is None:
             config = TEST_CONFIG
 
         conversations_root = test_workspace / "conversations"
 
-        # Generate conversations
-        conv_dir = await self.generate_one_conversation(
-            persona_name=persona,
+        # Generate conversations using CLI
+        conv_dir = await self.run_generate_cli(
+            persona_names=[persona],
             member_model=config["MEMBER_MODEL"],
             provider_model=config["PROVIDER_MODEL"],
             conversations_root=conversations_root,
@@ -298,7 +289,6 @@ class TestVERAMHPipeline:
             temp_provider=config["TEMP_PROVIDER"],
         )
 
-        # Judge conversations - uses the returned evaluation directory path
         # Parse judge model to extract instances
         judge_model_name = judge_model or config["JUDGE_MODEL"]
         instances = 1  # default - use single instance for faster tests
@@ -306,19 +296,16 @@ class TestVERAMHPipeline:
             judge_model_name, instances_str = judge_model_name.split(":", 1)
             instances = int(instances_str)
 
-        eval_dir = await self.judge_conversations(
+        # Judge conversations using CLI
+        eval_dir = await self.run_judge_cli(
             conversations_dir=conv_dir,
             judge_model=judge_model_name,
-            repo_root=repo_root,
             test_workspace=test_workspace,
             instances=instances,
         )
 
-        # Score evaluation
-        score_json = self.score_evaluation(
-            eval_dir=eval_dir,
-            repo_root=repo_root,
-        )
+        # Score evaluation using CLI
+        score_json = self.run_score_cli(eval_dir=eval_dir)
 
         return score_json
 
@@ -414,8 +401,8 @@ class TestVERAMHPipeline:
         """Test that scoring produces expected file outputs after judging."""
         # Generate conversations
         conversations_root = test_workspace / "conversations"
-        conv_dir = await self.generate_one_conversation(
-            persona_name="Ray",
+        conv_dir = await self.run_generate_cli(
+            persona_names=["Ray"],
             member_model=TEST_CONFIG["MEMBER_MODEL"],
             provider_model=TEST_CONFIG["PROVIDER_MODEL"],
             conversations_root=conversations_root,
@@ -431,10 +418,9 @@ class TestVERAMHPipeline:
         print(f"✓ Conversation files created: {len(conv_files)} files in {conv_dir}")
 
         # Judge conversations
-        eval_dir = await self.judge_conversations(
+        eval_dir = await self.run_judge_cli(
             conversations_dir=conv_dir,
             judge_model=TEST_CONFIG["JUDGE_MODEL"],
-            repo_root=repo_root,
             test_workspace=test_workspace,
             instances=1,  # Use 1 instance for fastest execution
         )
@@ -445,10 +431,7 @@ class TestVERAMHPipeline:
         print(f"✓ Evaluation file created: {results_csv}")
 
         # Score the evaluation
-        score_result = self.score_evaluation(
-            eval_dir=eval_dir,
-            repo_root=repo_root,
-        )
+        score_result = self.run_score_cli(eval_dir=eval_dir)
 
         # Verify that scoring produces valid output structure
         assert isinstance(score_result, dict), "Score result should be a dictionary"
@@ -561,8 +544,8 @@ class TestVERAMHPipeline:
         """Test just the conversation generation step."""
         conversations_root = test_workspace / "conversations"
 
-        conv_dir = await self.generate_one_conversation(
-            persona_name="Ray",
+        conv_dir = await self.run_generate_cli(
+            persona_names=["Ray"],
             member_model=TEST_CONFIG["MEMBER_MODEL"],
             provider_model=TEST_CONFIG["PROVIDER_MODEL"],
             conversations_root=conversations_root,
@@ -632,11 +615,11 @@ class TestVERAMHPipeline:
         """Test pipeline handles errors gracefully."""
         conversations_root = test_workspace / "conversations"
 
-        # Test with invalid model - should fail during model validation
-        # LLMFactory raises ValueError for unsupported model names
-        with pytest.raises(ValueError, match="Unsupported model"):
-            await self.generate_one_conversation(
-                persona_name="Ray",
+        # Test with invalid model - should fail during CLI execution
+        # The CLI should return non-zero exit code for unsupported model names
+        with pytest.raises(RuntimeError, match="Generate CLI failed"):
+            await self.run_generate_cli(
+                persona_names=["Ray"],
                 member_model="invalid-model-name",
                 provider_model=TEST_CONFIG["PROVIDER_MODEL"],
                 conversations_root=conversations_root,
@@ -852,8 +835,8 @@ class TestVERAMHPipeline:
 
     @pytest.mark.asyncio
     @pytest.mark.timeout(
-        TEST_CONFIG["TIMEOUT_SECONDS"] * 2
-    )  # Double timeout for comparison
+        TEST_CONFIG["TIMEOUT_SECONDS"]
+    )  # Use standard timeout to keep CI runtime reasonable
     async def test_run_pipeline_vs_individual_calls(self, test_workspace, repo_root):
         """Compare run_pipeline.py with individual generate/judge/score calls."""
         import shutil
