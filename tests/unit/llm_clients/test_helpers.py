@@ -102,11 +102,12 @@ def assert_iso_timestamp(timestamp: str) -> None:
 
 
 def assert_metadata_copy_behavior(llm: LLMInterface) -> None:
-    """Assert that last_response_metadata (property) returns a copy.
+    """Assert that last_response_metadata (property) returns a deep copy.
 
     Verifies that:
     1. Multiple calls return equal but different objects
-    2. Modifying returned dict doesn't affect internal state
+    2. Modifying returned dict (top-level) doesn't affect internal state
+    3. Modifying nested dicts (e.g. usage) doesn't affect internal state
 
     Args:
         llm: LLM instance to test
@@ -129,6 +130,15 @@ def assert_metadata_copy_behavior(llm: LLMInterface) -> None:
     assert (
         "modified" not in llm.last_response_metadata
     ), "Modification leaked to internal state"
+
+    # Nested mutation must not affect internal state (deep copy)
+    llm.last_response_metadata = {"usage": {"input_tokens": 10, "output_tokens": 5}}
+    meta = llm.last_response_metadata
+    meta["usage"]["input_tokens"] = 999
+    fresh = llm.last_response_metadata
+    assert (
+        fresh["usage"]["input_tokens"] == 10
+    ), "Nested mutation leaked to internal state (expected deep copy)"
 
 
 def assert_response_timing(metadata: Dict[str, Any]) -> None:

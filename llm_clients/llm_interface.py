@@ -1,3 +1,4 @@
+import copy
 import uuid
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -37,8 +38,10 @@ class LLMInterface(ABC):
 
     @property
     def last_response_metadata(self) -> Dict[str, Any]:
-        """Metadata from the last generate_response call. Returns a copy."""
-        return self._last_response_metadata.copy()
+        """Metadata from the last generate_response call. Returns a deep copy so
+        callers cannot mutate internal state (including nested dicts like usage).
+        """
+        return copy.deepcopy(self._last_response_metadata)
 
     @last_response_metadata.setter
     def last_response_metadata(self, value: Optional[Dict[str, Any]]) -> None:
