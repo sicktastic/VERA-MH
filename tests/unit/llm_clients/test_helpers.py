@@ -53,7 +53,7 @@ def assert_metadata_structure(
     Raises:
         AssertionError: If metadata structure is invalid
     """
-    metadata = llm.get_last_response_metadata()
+    metadata = llm.last_response_metadata
 
     # Check required fields exist
     assert "model" in metadata, "Metadata missing 'model' field"
@@ -102,7 +102,7 @@ def assert_iso_timestamp(timestamp: str) -> None:
 
 
 def assert_metadata_copy_behavior(llm: LLMInterface) -> None:
-    """Assert that get_last_response_metadata returns a copy.
+    """Assert that last_response_metadata (property) returns a copy.
 
     Verifies that:
     1. Multiple calls return equal but different objects
@@ -117,8 +117,8 @@ def assert_metadata_copy_behavior(llm: LLMInterface) -> None:
     # Set some test metadata
     llm.last_response_metadata = {"test": "value"}
 
-    metadata1 = llm.get_last_response_metadata()
-    metadata2 = llm.get_last_response_metadata()
+    metadata1 = llm.last_response_metadata
+    metadata2 = llm.last_response_metadata
 
     # Should be equal but not the same object
     assert metadata1 == metadata2, "Multiple calls should return equal dicts"
@@ -165,7 +165,7 @@ def assert_error_metadata(
     Raises:
         AssertionError: If error metadata is invalid
     """
-    metadata = llm.get_last_response_metadata()
+    metadata = llm.last_response_metadata
 
     # Check error field exists and contains expected substring
     assert "error" in metadata, "Metadata missing 'error' field"

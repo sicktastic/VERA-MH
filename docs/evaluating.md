@@ -186,12 +186,9 @@ def set_system_prompt(self, system_prompt: str) -> None:
     self.system_prompt = system_prompt
 ```
 
-#### `get_last_response_metadata()` - Get response metadata (optional but recommended)
-```python
-def get_last_response_metadata(self) -> Dict[str, Any]:
-    """Get metadata from the last response."""
-    return self.last_response_metadata.copy()
-```
+#### `last_response_metadata` - Response metadata (required)
+
+Set in `__init__` (base sets it to `{}`). Update it in `generate_response()`: assign with `self.last_response_metadata = {...}`. If you need in-place updates (e.g. `self.last_response_metadata["usage"] = ...`), use `self._last_response_metadata` so the stored dict is updated. The property getter returns a copy so callers can use `last_response_metadata` without mutating the client's dict.
 
 ### 3. Add the new LLM client to the factory
 
@@ -226,6 +223,15 @@ python3 judge.py -f conversations/{YOUR_FOLDER} -j your-model-name
 - **Structured Output**: For the judge system to work properly, your LLM should support structured output via `generate_structured_response()`
 - **LangChain Integration**: The provided implementations use LangChain for robust LLM interactions
 - **Error Handling**: Make sure to handle errors gracefully and return appropriate error messages
+
+### Conversation flow and history
+
+VERA's ConversationSimulator holds the full conversation and passes `conversation_history` into your client on every call. Your client is not required to store history. You can:
+
+- **Stateless**: Build each request from `conversation_history` (as the built-in clients do), or
+- **Server-side state**: Send a `conversation_id` to your API and let the server maintain the thread; in that case you may use `conversation_history` only when needed (e.g. fallback or logging).
+
+Your LLM client is responsible for updating `conversation_id` after each response. At the end of `generate_response()`, after setting `last_response_metadata`, call `self.ensure_conversation_id()`. That method reads `self.last_response_metadata` and sets `self.conversation_id` from the key `"conversation_id"` if present, or creates a unique id via `create_conversation_id()`. The interface requires updating `last_response_metadata` in `generate_response()`. Use `self.conversation_id` when your API needs a thread or session id. Callers that need to store metadata elsewhere should use `last_response_metadata.copy()`. The ConversationSimulator does not manage conversation_id; it only calls `generate_response(conversation_history)`.
 
 ## Structured Output Support
 

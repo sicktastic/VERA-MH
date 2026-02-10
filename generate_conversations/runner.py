@@ -58,11 +58,14 @@ class ConversationRunner:
         persona_config: dict,
         agent,
         max_turns: int,
-        conversation_id: int,
+        conversation_index: int,
         run_number: int,
         **kargs: dict,
     ) -> Dict[str, Any]:
         """Run a single conversation asynchronously."""
+        # Reset shared agent's conversation_id so any server-side conversations clear
+        agent.conversation_id = None
+
         model_name = persona_config["model"]
         system_prompt = persona_config["prompt"]  # This is now the full persona prompt
         persona_name = persona_config["name"]
@@ -148,7 +151,7 @@ class ConversationRunner:
             simulator.save_conversation(f"{filename_base}.txt", self.folder_name)
 
             result = {
-                "id": conversation_id,
+                "id": conversation_index,
                 "llm1_model": model_name,
                 "llm1_prompt": persona_name,
                 "run_number": run_number,
@@ -190,7 +193,7 @@ class ConversationRunner:
 
         # Create tasks for all conversations (each prompt run multiple times)
         tasks = []
-        conversation_id = 1
+        conversation_index = 1
 
         for persona in personas:
             for run in range(1, self.runs_per_prompt + 1):
@@ -205,11 +208,11 @@ class ConversationRunner:
                         },
                         agent,
                         self.max_turns,
-                        conversation_id,
+                        conversation_index,
                         run,
                     )
                 )
-                conversation_id += 1
+                conversation_index += 1
 
         # Run all conversations with concurrency limit
         start_time = datetime.now()

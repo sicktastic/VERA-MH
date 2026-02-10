@@ -72,11 +72,8 @@ class MockLLM(JudgeLLM):
             "total_tokens": 30,
         }
 
+        self.ensure_conversation_id()
         return response
-
-    def get_last_response_metadata(self) -> Dict[str, Any]:
-        """Get metadata from the last response."""
-        return self.last_response_metadata.copy()
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """Set or update the system prompt."""

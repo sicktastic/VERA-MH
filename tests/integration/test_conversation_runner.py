@@ -292,7 +292,7 @@ class TestConversationRunnerSingle:
                 persona_config=persona_config,
                 agent=agent,
                 max_turns=4,
-                conversation_id=1,
+                conversation_index=1,
                 run_number=1,
             )
 
@@ -366,7 +366,7 @@ class TestConversationRunnerSingle:
                 persona_config=persona_config,
                 agent=agent,
                 max_turns=2,
-                conversation_id=1,
+                conversation_index=1,
                 run_number=1,
             )
 
@@ -425,7 +425,7 @@ class TestConversationRunnerSingle:
                 persona_config=persona_config,
                 agent=agent,
                 max_turns=2,
-                conversation_id=1,
+                conversation_index=1,
                 run_number=2,
             )
 
@@ -496,7 +496,7 @@ class TestConversationRunnerSingle:
                     persona_config=persona_config,
                     agent=agent_mock,
                     max_turns=10,
-                    conversation_id=1,
+                    conversation_index=1,
                     run_number=1,
                 )
 
@@ -547,7 +547,7 @@ class TestConversationRunnerSingle:
                 persona_config=persona_config,
                 agent=agent,
                 max_turns=2,
-                conversation_id=5,
+                conversation_index=5,
                 run_number=3,
             )
 
@@ -721,14 +721,14 @@ class TestConversationRunnerMultiple:
         # Assert
         assert len(results) == 2  # 1 persona * 2 runs
 
-    async def test_conversation_id_increments(
+    async def test_conversation_index_increments(
         self,
         tmp_path: Path,
         basic_persona_config: Dict[str, Any],
         basic_agent_config: Dict[str, Any],
         mock_llm_factory,
     ) -> None:
-        """Test that conversation IDs increment correctly."""
+        """Test that conversation indices increment correctly."""
         # Arrange
         conv_folder = tmp_path / "conversations"
         runner = create_test_runner(
@@ -812,7 +812,7 @@ class TestConversationRunnerFileOperations:
                 persona_config=persona_config,
                 agent=agent,
                 max_turns=2,
-                conversation_id=1,
+                conversation_index=1,
                 run_number=1,
             )
 
@@ -957,7 +957,7 @@ class TestConversationRunnerErrorHandling:
                         persona_config=persona_config,
                         agent=error_agent,
                         max_turns=2,
-                        conversation_id=1,
+                        conversation_index=1,
                         run_number=1,
                     )
 
@@ -1039,7 +1039,7 @@ class TestConversationRunnerErrorHandling:
                     persona_config=persona_config,
                     agent=agent,
                     max_turns=2,
-                    conversation_id=1,
+                    conversation_index=1,
                     run_number=1,
                 )
 
@@ -1096,7 +1096,7 @@ class TestConversationRunnerPerformance:
                 persona_config=persona_config,
                 agent=agent,
                 max_turns=2,
-                conversation_id=1,
+                conversation_index=1,
                 run_number=1,
             )
             end = time.time()

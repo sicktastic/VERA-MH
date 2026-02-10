@@ -204,3 +204,49 @@ class TestLLMInterface:
         assert isinstance(llm.float_attr, float)
         assert isinstance(llm.bool_attr, bool)
         assert isinstance(llm.list_attr, list)
+
+    def test_init_sets_conversation_id_none(self):
+        """Test that conversation_id is initialized to None."""
+        llm = ConcreteLLM(name="TestLLM", role=Role.PROVIDER)
+        assert llm.conversation_id is None
+
+    def test_create_conversation_id_returns_string(self):
+        """Test that create_conversation_id returns a non-empty string (e.g. UUID)."""
+        llm = ConcreteLLM(name="TestLLM", role=Role.PROVIDER)
+        cid = llm.create_conversation_id()
+        assert isinstance(cid, str)
+        assert len(cid) > 0
+
+    def test_ensure_conversation_id_sets_from_empty_metadata(self):
+        """Test ensure_conversation_id sets conversation_id when metadata is empty."""
+        llm = ConcreteLLM(name="TestLLM", role=Role.PROVIDER)
+        assert llm.conversation_id is None
+        llm.last_response_metadata = {}
+        llm.ensure_conversation_id()
+        assert llm.conversation_id is not None
+        assert isinstance(llm.conversation_id, str)
+
+    def test_ensure_conversation_id_uses_metadata_when_present(self):
+        """
+        Test ensure_conversation_id uses conversation_id from last_response_metadata.
+        """
+        llm = ConcreteLLM(name="TestLLM", role=Role.PROVIDER)
+        llm.last_response_metadata = {"conversation_id": "api-provided-id"}
+        llm.ensure_conversation_id()
+        assert llm.conversation_id == "api-provided-id"
+
+    def test_ensure_conversation_id_idempotent_when_already_set(self):
+        """Test ensure_conversation_id does nothing when conversation_id already set."""
+        llm = ConcreteLLM(name="TestLLM", role=Role.PROVIDER)
+        llm.conversation_id = "existing-id"
+        llm.last_response_metadata = {"conversation_id": "other-id"}
+        llm.ensure_conversation_id()
+        assert llm.conversation_id == "existing-id"
+
+    @pytest.mark.asyncio
+    async def test_conversation_id_available_after_ensure(self):
+        """Test that self.conversation_id is set after ensure_conversation_id."""
+        llm = ConcreteLLM(name="TestLLM", role=Role.PROVIDER)
+        await llm.generate_response(conversation_history=[])
+        llm.ensure_conversation_id()
+        assert llm.conversation_id is not None

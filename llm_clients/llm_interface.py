@@ -1,3 +1,4 @@
+import uuid
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type, TypeVar
@@ -31,7 +32,42 @@ class LLMInterface(ABC):
         self.name = name
         self.role = role
         self.system_prompt = system_prompt or ""
-        self.last_response_metadata: Dict[str, Any] = {}
+        self._last_response_metadata: Dict[str, Any] = {}
+        self.conversation_id: Optional[str] = None
+
+    @property
+    def last_response_metadata(self) -> Dict[str, Any]:
+        """Metadata from the last generate_response call. Returns a copy."""
+        return self._last_response_metadata.copy()
+
+    @last_response_metadata.setter
+    def last_response_metadata(self, value: Optional[Dict[str, Any]]) -> None:
+        """Set metadata; use _last_response_metadata for in-place updates."""
+        self._last_response_metadata = value or {}
+
+    def create_conversation_id(self) -> str:
+        """Create a new unique conversation id.
+
+        Used when the client does not provide one in response metadata.
+        Subclasses may override to use a different id format.
+        """
+        return str(uuid.uuid4())
+
+    def ensure_conversation_id(self) -> None:
+        """Set conversation_id from last response metadata or create one if not set.
+
+        Call after generate_response (e.g. at the end of generate_response).
+        If conversation_id is already set, does nothing. Otherwise sets it from
+        self.last_response_metadata["conversation_id"] if present, or from
+        create_conversation_id(). Implementations must update
+        self.last_response_metadata in generate_response().
+        """
+        if self.conversation_id is not None:
+            return
+        metadata = self.last_response_metadata or {}
+        self.conversation_id = (
+            metadata.get("conversation_id") or self.create_conversation_id()
+        )
 
     @abstractmethod
     async def generate_response(
@@ -49,8 +85,13 @@ class LLMInterface(ABC):
                 starting the conversation.
 
         Returns:
-            str: The response text. Metadata available via
-                get_last_response_metadata()
+            str: The response text. Metadata in self.last_response_metadata
+                (getter returns a copy so callers need not copy).
+
+        Note:
+            For API thread/session identification, use self.conversation_id.
+            Implementations should call self.ensure_conversation_id() before
+            returning, so self.conversation_id is set for the next call.
         """
         pass
 
