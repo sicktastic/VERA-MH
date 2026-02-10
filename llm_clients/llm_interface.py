@@ -64,7 +64,7 @@ class LLMInterface(ABC):
         will overwrite self.conversation_id here.
         """
         cid = (self._last_response_metadata or {}).get("conversation_id")
-        if cid is not None:
+        if cid is not None and cid != self.conversation_id and cid != "":
             self.conversation_id = cid
 
     @abstractmethod
