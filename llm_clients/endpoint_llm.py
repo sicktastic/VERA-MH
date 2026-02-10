@@ -41,6 +41,8 @@ class EndpointLLM(LLMInterface):
         self.model_name = model_name or "endpoint"
         self.temperature = kwargs.pop("temperature", None)
         self.max_tokens = kwargs.pop("max_tokens", None)
+        # ID to send on first request; API may use it or return its own.
+        self.ensure_conversation_id()
 
     def __getattr__(self, name):
         """Delegate attribute access to the underlying llm object.
@@ -103,8 +105,9 @@ class EndpointLLM(LLMInterface):
             msg_data = resp_data.get("message") or {}
             msg_text: str = msg_data.get("content", "")
 
+            server_conversation_id = resp_data.get("conversation_id")
             self.last_response_metadata = {
-                "conversation_id": resp_data.get("conversation_id"),
+                "conversation_id": server_conversation_id,
                 "model": resp_data.get("model", self._api_model),
                 "provider": "endpoint",
                 "role": self.role.value,
@@ -118,6 +121,12 @@ class EndpointLLM(LLMInterface):
                 "eval_duration": resp_data.get("eval_duration"),
             }
             self.ensure_conversation_id()
+            # Update conversation_id if API returned a different one
+            if (
+                server_conversation_id is not None
+                and server_conversation_id != self.conversation_id
+            ):
+                self.conversation_id = server_conversation_id
             return msg_text
         except Exception as e:
             self.last_response_metadata = {
