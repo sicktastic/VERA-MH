@@ -964,13 +964,13 @@ class TestConversationRunnerFileOperations:
 class TestConversationRunnerErrorHandling:
     """Test error handling and edge cases."""
 
-    async def test_handles_llm_errors_gracefully(
+    async def test_llm_errors_propagate_from_run_single_conversation(
         self,
         tmp_path: Path,
         basic_persona_config: Dict[str, Any],
         basic_agent_config: Dict[str, Any],
     ) -> None:
-        """Test that LLM errors are handled gracefully."""
+        """When the agent LLM errors during conversation, the exception propagates."""
         # Arrange
         conv_folder = tmp_path / "conversations"
         runner = ConversationRunner(
@@ -1013,8 +1013,8 @@ class TestConversationRunnerErrorHandling:
             with patch(
                 "generate_conversations.runner.LLMFactory.create_llm"
             ) as mock_factory:
-                # run_single_conversation creates agent first, then persona
-                mock_factory.side_effect = [error_agent, persona_mock]
+                # run_single_conversation creates persona first, then agent
+                mock_factory.side_effect = [persona_mock, error_agent]
 
                 # Act & Assert - should raise the error
                 with pytest.raises(Exception) as exc_info:
