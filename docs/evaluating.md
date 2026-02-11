@@ -231,7 +231,10 @@ VERA's ConversationSimulator holds the full conversation and passes `conversatio
 - **Stateless**: Build each request from `conversation_history` (as the built-in clients do), or
 - **Server-side state**: Send a `conversation_id` to your API and let the server maintain the thread; in that case you may use `conversation_history` only when needed (e.g. fallback or logging).
 
-`conversation_id` is set at client init so you always have one to send as request metadata. At the end of `generate_response()`, after setting `_last_response_metadata`, call `self._update_conversation_id_from_metadata()`. If the API returns a `conversation_id` in response metadata, that value overwrites `self.conversation_id` (e.g. when the API ignores our id but returns its own). The interface requires updating `_last_response_metadata` in `generate_response()`. Use `self.conversation_id` when your API needs a thread or session id. Callers that need to store metadata elsewhere should use `last_response_metadata.copy()`. The ConversationSimulator does not manage conversation_id; it only calls `generate_response(conversation_history)`.
+**When your endpoint requires a conversation/thread id** (the built-in clients do not; this is for custom clients):
+
+- `conversation_id` is set in the base class `__init__`, so you always have one to send as request metadata. Use `self.conversation_id` when your API needs a thread or session id.
+- For LLM clients that require `conversation_id` handling, in `generate_response()`, you must set `conversation_id` in `_last_response_metadata` (interface requirement). If your API returns its own `conversation_id` in the response metadata (e.g. it ignores the one we send), call `self._update_conversation_id_from_metadata()` at the end of `generate_response()` after setting `_last_response_metadata`; that overwrites `self.conversation_id` with the API’s value.
 
 ## Structured Output Support
 
