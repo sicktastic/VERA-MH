@@ -179,25 +179,55 @@ class TestConversationRunnerInit:
         assert runner.folder_name == "test_conversations"
         assert runner.max_concurrent == 3
 
-    def test_agent_system_prompt_from_config(
+    @pytest.mark.asyncio
+    async def test_agent_system_prompt_from_config(
         self,
+        tmp_path: Path,
         basic_persona_config: Dict[str, Any],
         basic_agent_config: Dict[str, Any],
+        mock_llm_factory,
     ) -> None:
-        """Test that agent system prompt from config is used when creating the agent."""
-        # Arrange
+        """Agent create_llm call receives system_prompt from config."""
         custom_prompt = "You are a mental health support chatbot."
-        basic_agent_config["system_prompt"] = custom_prompt
+        agent_config = copy.deepcopy(basic_agent_config)
+        agent_config["system_prompt"] = custom_prompt
 
-        # Act
+        create_llm_calls = []
+        real_create = mock_llm_factory.side_effect
+
+        def recording_create_llm(*args: Any, **kwargs: Any) -> MockLLM:
+            create_llm_calls.append(copy.deepcopy(kwargs))
+            return real_create(*args, **kwargs)
+
+        mock_llm_factory.side_effect = recording_create_llm
+
         runner = ConversationRunner(
             persona_model_config=basic_persona_config,
-            agent_model_config=basic_agent_config,
+            agent_model_config=agent_config,
             run_id="test_run",
+            folder_name=str(tmp_path / "conversations"),
         )
+        persona_config = {
+            "model": "mock-persona-model",
+            "prompt": "Test persona prompt",
+            "name": "TestPersona",
+            "run": 1,
+        }
 
-        # Assert: config is preserved; runner uses it at create_llm time
-        assert runner.agent_model_config.get("system_prompt") == custom_prompt
+        with patch(
+            "generate_conversations.runner.setup_conversation_logger"
+        ) as mock_logger:
+            mock_logger.return_value = MagicMock()
+            await runner.run_single_conversation(
+                persona_config=persona_config,
+                max_turns=2,
+                conversation_index=1,
+                run_number=1,
+            )
+
+        agent_calls = [c for c in create_llm_calls if c.get("role") == Role.PROVIDER]
+        assert len(agent_calls) == 1
+        assert agent_calls[0]["system_prompt"] == custom_prompt
 
     @pytest.mark.asyncio
     async def test_agent_system_prompt_default(
