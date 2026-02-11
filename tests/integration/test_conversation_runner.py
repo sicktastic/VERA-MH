@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from generate_conversations.runner import ConversationRunner
+from llm_clients.llm_interface import Role
 from tests.mocks.mock_llm import MockLLM
 
 
@@ -178,50 +179,105 @@ class TestConversationRunnerInit:
         assert runner.folder_name == "test_conversations"
         assert runner.max_concurrent == 3
 
-    def test_agent_system_prompt_from_config(
+    @pytest.mark.asyncio
+    async def test_agent_system_prompt_from_config(
         self,
+        tmp_path: Path,
         basic_persona_config: Dict[str, Any],
         basic_agent_config: Dict[str, Any],
+        mock_llm_factory,
     ) -> None:
-        """Test that agent system prompt from config is used when creating the agent."""
-        # Arrange
+        """Agent create_llm call receives system_prompt from config."""
         custom_prompt = "You are a mental health support chatbot."
-        basic_agent_config["system_prompt"] = custom_prompt
+        agent_config = copy.deepcopy(basic_agent_config)
+        agent_config["system_prompt"] = custom_prompt
 
-        # Act
-        runner = ConversationRunner(
-            persona_model_config=basic_persona_config,
-            agent_model_config=basic_agent_config,
-            run_id="test_run",
-        )
+        create_llm_calls = []
+        real_create = mock_llm_factory.side_effect
 
-        # Assert: config is preserved; runner uses it at create_llm time
-        assert runner.agent_model_config.get("system_prompt") == custom_prompt
+        def recording_create_llm(*args: Any, **kwargs: Any) -> MockLLM:
+            create_llm_calls.append(copy.deepcopy(kwargs))
+            return real_create(*args, **kwargs)
 
-    def test_agent_system_prompt_default(
-        self,
-        basic_persona_config: Dict[str, Any],
-    ) -> None:
-        """Test default agent system prompt when not in config."""
-        # Arrange
-        agent_config = {
-            "model": "mock-agent",
-            "name": "test-agent",
-        }
-        default_prompt = "You are a helpful AI assistant."
+        mock_llm_factory.side_effect = recording_create_llm
 
-        # Act
         runner = ConversationRunner(
             persona_model_config=basic_persona_config,
             agent_model_config=agent_config,
             run_id="test_run",
+            folder_name=str(tmp_path / "conversations"),
         )
+        persona_config = {
+            "model": "mock-persona-model",
+            "prompt": "Test persona prompt",
+            "name": "TestPersona",
+            "run": 1,
+        }
 
-        # Assert: runner uses this default at create_llm time when key is missing
-        assert (
-            runner.agent_model_config.get("system_prompt", default_prompt)
-            == default_prompt
+        with patch(
+            "generate_conversations.runner.setup_conversation_logger"
+        ) as mock_logger:
+            mock_logger.return_value = MagicMock()
+            await runner.run_single_conversation(
+                persona_config=persona_config,
+                max_turns=2,
+                conversation_index=1,
+                run_number=1,
+            )
+
+        agent_calls = [c for c in create_llm_calls if c.get("role") == Role.PROVIDER]
+        assert len(agent_calls) == 1
+        assert agent_calls[0]["system_prompt"] == custom_prompt
+
+    @pytest.mark.asyncio
+    async def test_agent_system_prompt_default(
+        self,
+        tmp_path: Path,
+        basic_persona_config: Dict[str, Any],
+        mock_llm_factory,
+    ) -> None:
+        """When agent config has no system_prompt, create_llm gets the fallback."""
+        default_prompt = "You are a helpful AI assistant."
+        agent_config = {
+            "model": "mock-agent",
+            "name": "test-agent",
+        }
+        create_llm_calls = []
+        real_create = mock_llm_factory.side_effect
+
+        def recording_create_llm(*args: Any, **kwargs: Any) -> MockLLM:
+            create_llm_calls.append(copy.deepcopy(kwargs))
+            return real_create(*args, **kwargs)
+
+        mock_llm_factory.side_effect = recording_create_llm
+
+        runner = ConversationRunner(
+            persona_model_config=basic_persona_config,
+            agent_model_config=agent_config,
+            run_id="test_run",
+            folder_name=str(tmp_path / "conversations"),
         )
+        persona_config = {
+            "model": "mock-persona-model",
+            "prompt": "Test persona prompt",
+            "name": "TestPersona",
+            "run": 1,
+        }
+
+        with patch(
+            "generate_conversations.runner.setup_conversation_logger"
+        ) as mock_logger:
+            mock_logger.return_value = MagicMock()
+            await runner.run_single_conversation(
+                persona_config=persona_config,
+                max_turns=2,
+                conversation_index=1,
+                run_number=1,
+            )
+
+        agent_calls = [c for c in create_llm_calls if c.get("role") == Role.PROVIDER]
+        assert len(agent_calls) == 1
+        assert agent_calls[0]["system_prompt"] == default_prompt
 
 
 @pytest.mark.integration
@@ -908,13 +964,13 @@ class TestConversationRunnerFileOperations:
 class TestConversationRunnerErrorHandling:
     """Test error handling and edge cases."""
 
-    async def test_handles_llm_errors_gracefully(
+    async def test_llm_errors_propagate_from_run_single_conversation(
         self,
         tmp_path: Path,
         basic_persona_config: Dict[str, Any],
         basic_agent_config: Dict[str, Any],
     ) -> None:
-        """Test that LLM errors are handled gracefully."""
+        """When the agent LLM errors during conversation, the exception propagates."""
         # Arrange
         conv_folder = tmp_path / "conversations"
         runner = ConversationRunner(
@@ -957,8 +1013,8 @@ class TestConversationRunnerErrorHandling:
             with patch(
                 "generate_conversations.runner.LLMFactory.create_llm"
             ) as mock_factory:
-                # run_single_conversation creates agent first, then persona
-                mock_factory.side_effect = [error_agent, persona_mock]
+                # run_single_conversation creates persona first, then agent
+                mock_factory.side_effect = [persona_mock, error_agent]
 
                 # Act & Assert - should raise the error
                 with pytest.raises(Exception) as exc_info:
