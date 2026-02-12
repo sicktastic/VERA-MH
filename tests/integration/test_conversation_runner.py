@@ -331,7 +331,7 @@ class TestConversationRunnerSingle:
             )
 
         # Assert - verify result structure
-        assert result["id"] == 1
+        assert result["index"] == 1
         assert result["llm1_model"] == "mock-persona-model"
         assert result["llm1_prompt"] == "TestPersona"
         assert result["run_number"] == 1
@@ -559,7 +559,7 @@ class TestConversationRunnerSingle:
 
         # Assert - verify all required metadata fields
         required_fields = [
-            "id",
+            "index",
             "llm1_model",
             "llm1_prompt",
             "run_number",
@@ -575,7 +575,7 @@ class TestConversationRunnerSingle:
             assert field in result, f"Missing field: {field}"
 
         # Verify types
-        assert isinstance(result["id"], int)
+        assert isinstance(result["index"], int)
         assert isinstance(result["turns"], int)
         assert isinstance(result["duration"], float)
         assert isinstance(result["early_termination"], bool)
@@ -763,9 +763,9 @@ class TestConversationRunnerMultiple:
                 # Act
                 results = await runner.run_conversations(persona_names=None)
 
-        # Assert - IDs should be 1, 2, 3, 4
-        ids = sorted([r["id"] for r in results])
-        assert ids == [1, 2, 3, 4]
+        # Assert - indices should be 1, 2, 3, 4
+        indices = sorted([r["index"] for r in results])
+        assert indices == [1, 2, 3, 4]
 
     async def test_agent_config_not_mutated_across_concurrent_conversations(
         self,

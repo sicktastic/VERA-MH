@@ -57,10 +57,21 @@ class ConversationRunner:
         run_number: int,
         **kwargs: dict,
     ) -> Dict[str, Any]:
-        """Run a single conversation asynchronously.
+        """Run a single simulated conversation (persona vs provider LLM).
 
-        Each conversation uses its own agent instance so conversation_id and
-        per-session state are not shared across concurrent tasks.
+        Uses fresh LLM instances per call; safe for concurrent use. Logs turns,
+        writes transcript to self.folder_name, then cleans up logger and LLMs.
+
+        Args:
+            persona_config (dict): Must have "model", "prompt", "name".
+            max_turns (int): Max conversation turns for a conversation.
+            conversation_index (int): Index in the batch of conversations.
+            run_number (int): Run index for this prompt (e.g. 1 of runs_per_prompt).
+            **kwargs: Unused; reserved for future use.
+
+        Returns:
+            Dict[str, Any]: index, llm1_model, llm1_prompt, run_number, turns,
+            filename, log_file, duration, early_termination, conversation.
         """
         model_name = persona_config["model"]
         system_prompt = persona_config["prompt"]  # This is now the full persona prompt
@@ -164,7 +175,7 @@ class ConversationRunner:
             simulator.save_conversation(f"{filename_base}.txt", self.folder_name)
 
             result = {
-                "id": conversation_index,
+                "index": conversation_index,
                 "llm1_model": model_name,
                 "llm1_prompt": persona_name,
                 "run_number": run_number,
