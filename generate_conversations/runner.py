@@ -184,6 +184,7 @@ class ConversationRunner:
                 try:
                     await llm.cleanup()
                 except Exception as e:
+                    # Log but don't fail if cleanup fails
                     print(f"Warning: Failed to cleanup LLM: {e}")
 
         return result
