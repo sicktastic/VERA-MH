@@ -137,10 +137,10 @@ class LLMInterface(ABC):
                   'response' (trigger text). Speaker is not required: that
                   entry is input used to elicit the LLM's first response for turn 1,
                   not a prior utterance.
-                - **Later turns**: Each turn has 'turn', 'speaker', and
-                  'response' fields. speaker is required because the message is the
-                  'response' fields. "speaker" is now required for proper
-                  LangChain message building.
+                - **Later turns**: Each turn must include 'turn', 'speaker',
+                  and 'response' fields. The 'speaker' field is required for
+                  correct LangChain message construction from conversation
+                  history.
                   See llm_clients/claude_llm.py for an example.
 
         Returns:
