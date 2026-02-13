@@ -109,7 +109,11 @@ class LLMInterface(ABC):
             List of dicts representing the initial conversation turn(s)
             (e.g. [{"turn": 0, "response": "<trigger text>"}]).
         """
-        trigger = self.trigger_message or DEFAULT_TRIGGER_MESSAGE
+        trigger = (
+            self.trigger_message
+            if self.trigger_message is not None
+            else DEFAULT_TRIGGER_MESSAGE
+        )
         return [{"turn": 0, "response": trigger}]
 
     @abstractmethod
