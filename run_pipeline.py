@@ -121,6 +121,12 @@ Example:
         help="Custom run ID for conversation folder (default: timestamp)",
     )
     parser.add_argument(
+        "--agent-speaks-first",
+        action="store_true",
+        help="Provider agent speaks first; max_turns will be adjusted "
+        "to ensure agent speaks last.",
+    )
+    parser.add_argument(
         "--debug", action="store_true", help="Enable debug logging for generation"
     )
 
@@ -241,6 +247,7 @@ async def main():
         max_concurrent=args.max_concurrent,
         max_total_words=args.max_total_words,
         max_personas=args.max_personas,
+        agent_speaks_first=args.agent_speaks_first,
     )
 
     print("")

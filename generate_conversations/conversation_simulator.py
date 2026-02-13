@@ -41,6 +41,7 @@ class ConversationSimulator:
         self,
         max_turns: int,
         max_total_words: Optional[int] = None,
+        persona_speaks_first: bool = True,
     ) -> List[Dict[str, Any]]:
         """
         Start a conversation between the two LLMs with early stopping support.
@@ -48,16 +49,19 @@ class ConversationSimulator:
         Args:
             max_turns: Maximum number of conversation turns
             max_total_words: Optional maximum total words across all responses
+            persona_speaks_first: If True, persona speaks first; else agent first.
 
         Returns:
             List of conversation turns with speaker and message
         """
         self.conversation_history = []
 
-        # Start with persona by default, but this can be changed
-        # The role-based logic in build_langchain_messages() handles any starting order
-        current_speaker = self.persona
-        next_speaker = self.agent
+        if persona_speaks_first:
+            current_speaker = self.persona
+            next_speaker = self.agent
+        else:
+            current_speaker = self.agent
+            next_speaker = self.persona
 
         total_words = 0
         for turn in range(max_turns):
@@ -80,7 +84,7 @@ class ConversationSimulator:
 
             # Determine input message for metadata tracking
             # Turn 0: trigger_message if LLM used, else None (static first message)
-            # On subsequent turns: the previous speaker's response
+            # On subsequent turns, we use the previous speaker's response as the input
             if turn == 0:
                 # get input message to store in the conversation turn below
                 input_msg = (

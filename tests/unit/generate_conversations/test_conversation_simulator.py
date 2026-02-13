@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from generate_conversations.conversation_simulator import ConversationSimulator
-from llm_clients.llm_interface import Role
+from llm_clients.llm_interface import DEFAULT_TRIGGER_MESSAGE, Role
 from tests.mocks.mock_llm import MockLLM
 
 
@@ -47,6 +47,34 @@ class TestConversationSimulator:
 
         assert len(history) == 5
         assert history[-1]["turn"] == 5
+
+    async def test_agent_speaks_first(self):
+        """persona_speaks_first=False: agent speaks first and last (odd max_turns)."""
+        persona = MockLLM(
+            name="persona",
+            role=Role.PERSONA,
+            responses=["P1", "P2", "P3"],
+        )
+        agent = MockLLM(
+            name="agent",
+            role=Role.PROVIDER,
+            responses=["A1", "A2", "A3"],
+        )
+        simulator = ConversationSimulator(persona=persona, agent=agent)
+
+        history = await simulator.generate_conversation(
+            max_turns=5,
+            persona_speaks_first=False,
+        )
+
+        assert len(history) == 5
+        assert history[0]["speaker"] == "provider"
+        assert history[-1]["speaker"] == "provider"
+        for i in range(5):
+            if i % 2 == 0:
+                assert history[i]["speaker"] == "provider"
+            else:
+                assert history[i]["speaker"] == "persona"
 
     async def test_early_termination_detection(self):
         """Test that conversation detects early termination signals."""
@@ -352,3 +380,104 @@ class TestConversationSimulator:
                 "test_convo.txt",
                 "test_folder",
             )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+class TestFirstSpeakerAndFirstMessageCombinations:
+    """Tests for persona_speaks_first x trigger_message vs initial_message."""
+
+    async def test_persona_first_trigger_message(self):
+        """Persona first + trigger: first turn uses trigger, persona responds."""
+        persona = MockLLM(
+            name="persona",
+            role=Role.PERSONA,
+            responses=["Hello from persona"],
+        )
+        agent = MockLLM(
+            name="agent",
+            role=Role.PROVIDER,
+            responses=["Hi back"],
+        )
+        simulator = ConversationSimulator(persona=persona, agent=agent)
+
+        history = await simulator.generate_conversation(max_turns=2)
+
+        assert history[0]["speaker"] == "persona"
+        assert history[0]["input"] == DEFAULT_TRIGGER_MESSAGE
+        assert history[0]["response"] == "Hello from persona"
+        assert history[1]["speaker"] == "provider"
+
+    async def test_persona_first_initial_message(self):
+        """Persona first + initial_message: first turn input None, static response."""
+        persona = MockLLM(
+            name="persona",
+            role=Role.PERSONA,
+            responses=["Second message"],
+            initial_message="Static hello",
+        )
+        agent = MockLLM(
+            name="agent",
+            role=Role.PROVIDER,
+            responses=["Reply to static"],
+        )
+        simulator = ConversationSimulator(persona=persona, agent=agent)
+
+        history = await simulator.generate_conversation(max_turns=2)
+
+        assert history[0]["speaker"] == "persona"
+        assert history[0]["input"] is None
+        assert history[0]["response"] == "Static hello"
+        assert "Static hello" in agent.calls
+        assert history[1]["speaker"] == "provider"
+
+    async def test_agent_first_trigger_message(self):
+        """Agent first, no initial_message: first turn uses trigger, agent responds."""
+        persona = MockLLM(
+            name="persona",
+            role=Role.PERSONA,
+            responses=["User reply"],
+        )
+        agent = MockLLM(
+            name="agent",
+            role=Role.PROVIDER,
+            responses=["Agent opening"],
+        )
+        simulator = ConversationSimulator(persona=persona, agent=agent)
+
+        history = await simulator.generate_conversation(
+            max_turns=2,
+            persona_speaks_first=False,
+        )
+
+        assert history[0]["speaker"] == "provider"
+        assert history[0]["input"] == DEFAULT_TRIGGER_MESSAGE
+        assert history[0]["response"] == "Agent opening"
+        assert history[1]["speaker"] == "persona"
+        assert "Agent opening" in persona.calls
+
+    async def test_agent_first_initial_message(self):
+        """Agent first + initial_message: first turn input None, static agent msg."""
+        persona = MockLLM(
+            name="persona",
+            role=Role.PERSONA,
+            responses=["User reply to agent"],
+        )
+        agent = MockLLM(
+            name="agent",
+            role=Role.PROVIDER,
+            responses=["Second agent line"],
+            initial_message="Agent says hello first",
+        )
+        simulator = ConversationSimulator(persona=persona, agent=agent)
+
+        history = await simulator.generate_conversation(
+            max_turns=2,
+            persona_speaks_first=False,
+        )
+
+        assert history[0]["speaker"] == "provider"
+        assert history[0]["input"] is None
+        assert history[0]["response"] == "Agent says hello first"
+        assert history[1]["speaker"] == "persona"
+        assert "Agent says hello first" in persona.calls

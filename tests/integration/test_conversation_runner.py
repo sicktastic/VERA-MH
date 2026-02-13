@@ -345,6 +345,50 @@ class TestConversationRunnerSingle:
         # Verify conversation file exists
         assert Path(result["filename"]).exists()
 
+    async def test_agent_speaks_first_first_turn_is_provider(
+        self,
+        tmp_path: Path,
+        basic_persona_config: Dict[str, Any],
+        basic_agent_config: Dict[str, Any],
+        mock_llm_factory,
+    ) -> None:
+        """Test agent_speaks_first=True: first turn is from the provider."""
+        conv_folder = tmp_path / "conversations"
+        run_id = "test_agent_first"
+
+        runner = ConversationRunner(
+            persona_model_config=basic_persona_config,
+            agent_model_config=basic_agent_config,
+            run_id=run_id,
+            folder_name=str(conv_folder),
+            agent_speaks_first=True,
+        )
+
+        persona_config = {
+            "model": "mock-persona-model",
+            "prompt": "Test persona prompt",
+            "name": "TestPersona",
+            "run": 1,
+        }
+
+        with patch(
+            "generate_conversations.runner.setup_conversation_logger"
+        ) as mock_logger:
+            logger = logging.getLogger("test_agent_first")
+            logger.handlers.clear()
+            mock_logger.return_value = logger
+
+            result = await runner.run_single_conversation(
+                persona_config=persona_config,
+                max_turns=3,
+                conversation_index=1,
+                run_number=1,
+            )
+
+        assert len(result["conversation"]) == 3
+        assert result["conversation"][0]["speaker"] == "provider"
+        assert result["conversation"][-1]["speaker"] == "provider"
+
     async def test_run_single_conversation_logging(
         self,
         tmp_path: Path,

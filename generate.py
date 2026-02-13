@@ -25,6 +25,7 @@ async def main(
     max_concurrent: Optional[int] = None,
     max_total_words: Optional[int] = None,
     max_personas: Optional[int] = None,
+    agent_speaks_first: bool = False,
 ) -> tuple[List[Dict[str, Any]], str]:
     """
     Generate conversations and return results.
@@ -46,6 +47,8 @@ async def main(
             conversations concurrently.
         max_personas: Optional maximum number of personas to load from CSV. If None,
             loads all personas.
+        agent_speaks_first: If True, provider agent speaks first; otherwise persona
+            speaks first. When True, max_turns is adjusted so the agent speaks last.
 
     Returns:
         List of conversation results
@@ -54,12 +57,18 @@ async def main(
         ValueError: Configuration error
         Exception: Other errors
     """
-    if max_turns % 2 != 0:
+    # Ensure agent always speaks last:
+    # persona first -> even turns -> agent speaks last;
+    # agent first -> odd turns -> agent speaks last
+    if not agent_speaks_first and max_turns % 2 != 0:
         print(
             "Max turns is odd, which means the last turn will be the user, "
-            "without a response."
+            "without an agent's response."
         )
         print("Changing max turns to an even number.")
+        max_turns = max_turns + 1
+    elif agent_speaks_first and max_turns % 2 == 0:
+        print("Agent speaks first; adding one turn so the agent speaks last.")
         max_turns = max_turns + 1
     if verbose:
         print("🔄 Generating conversations with the following parameters:")
@@ -75,6 +84,7 @@ async def main(
         print(f"  - Max concurrent: {max_concurrent}")
         print(f"  - Max total words: {max_total_words}")
         print(f"  - Max personas: {max_personas}")
+        print(f"  - Agent speaks first: {agent_speaks_first}")
 
     # Generate default folder name if not provided
     if folder_name is None:
@@ -109,6 +119,7 @@ async def main(
         max_concurrent=max_concurrent,
         max_total_words=max_total_words,
         max_personas=max_personas,
+        agent_speaks_first=agent_speaks_first,
     )
 
     # Run conversations
@@ -229,6 +240,14 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--agent-speaks-first",
+        help="Provider agent speaks first; max_turns will be adjusted "
+        "to ensure agent speaks last.",
+        action="store_true",
+        default=False,
+    )
+
+    parser.add_argument(
         "--debug",
         "-d",
         help="Enable debug logging for conversation generation",
@@ -291,5 +310,6 @@ if __name__ == "__main__":
             max_concurrent=args.max_concurrent,
             max_total_words=args.max_total_words,
             max_personas=args.max_personas,
+            agent_speaks_first=args.agent_speaks_first,
         )
     )
