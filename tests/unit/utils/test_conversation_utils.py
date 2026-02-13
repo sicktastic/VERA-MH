@@ -15,8 +15,8 @@ from utils.conversation_utils import (
 )
 
 
-class TestNormalizeMaxTurnsForProviderLast:
-    """Test normalize_max_turns_for_provider_last."""
+class TestEnsureProviderHasLastTurn:
+    """Test ensure_provider_has_last_turn."""
 
     def test_persona_first_even_unchanged(self) -> None:
         assert ensure_provider_has_last_turn(4, persona_speaks_first=True) == 4
