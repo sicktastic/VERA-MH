@@ -85,11 +85,6 @@ async def main(
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         persona_info = persona_model_config["model"].replace("-", "_").replace(".", "_")
         agent_info = agent_model_config["model"].replace("-", "_").replace(".", "_")
-        if persona_extra_run_params:
-            persona_info += f"_{persona_extra_run_params}"
-
-        if agent_extra_run_params:
-            agent_info += f"_{agent_extra_run_params}"
 
         run_id = (
             f"p_{persona_info}__a_{agent_info}__t{max_turns}__"

@@ -57,7 +57,6 @@ def log_conversation_start(
     llm1_prompt: str,
     llm2_name: str,
     llm2_model_str: str,
-    first_message: str,
     max_turns: int,
     llm1_model: LLMInterface,
     llm2_model: LLMInterface,
@@ -79,7 +78,6 @@ def log_conversation_start(
     logger.info(f"Configuration, temperature: {llm2_model.temperature}")
     logger.info(f"Configuration, max_tokens: {llm2_model.max_tokens}")
     logger.info("Conversation Settings:")
-    logger.info(f"  - First Message: {first_message}")
     logger.info(f"  - Max Turns: {max_turns}")
     logger.info("=" * 60)
 

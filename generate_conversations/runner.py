@@ -125,18 +125,12 @@ class ConversationRunner:
         )
 
         # Log conversation start
-        first_message = (
-            persona.get_first_turn_input_message()
-            if self.persona_speaks_first
-            else agent.get_first_turn_input_message()
-        )
         log_conversation_start(
             logger=logger,
             llm1_model_str=model_name,
             llm1_prompt=persona_name,
             llm2_name=agent.name,
             llm2_model_str=getattr(agent, "model_name", "unknown"),
-            first_message=first_message or "",
             max_turns=max_turns,
             llm1_model=persona,
             llm2_model=agent,
