@@ -26,7 +26,7 @@ async def main(
     max_concurrent: Optional[int] = None,
     max_total_words: Optional[int] = None,
     max_personas: Optional[int] = None,
-    provider_speaks_first: bool = False,
+    persona_speaks_first: bool = True,
 ) -> tuple[List[Dict[str, Any]], str]:
     """
     Generate conversations and return results.
@@ -48,8 +48,8 @@ async def main(
             conversations concurrently.
         max_personas: Optional maximum number of personas to load from CSV. If None,
             loads all personas.
-        provider_speaks_first: If True, provider agent speaks first; otherwise persona
-            speaks first. When True, max_turns is adjusted so the agent speaks last.
+        persona_speaks_first: If True (default), persona speaks first; else provider
+            speaks first. max_turns is adjusted so the provider always speaks last.
 
     Returns:
         List of conversation results
@@ -59,10 +59,7 @@ async def main(
         Exception: Other errors
     """
     # Ensure provider agent always speaks last
-    # (persona_speaks_first = not provider_speaks_first)
-    max_turns = ensure_provider_has_last_turn(
-        max_turns, persona_speaks_first=not provider_speaks_first
-    )
+    max_turns = ensure_provider_has_last_turn(max_turns, persona_speaks_first)
     if verbose:
         print("🔄 Generating conversations with the following parameters:")
         print(f"  - Persona model: {persona_model_config}")
@@ -77,7 +74,7 @@ async def main(
         print(f"  - Max concurrent: {max_concurrent}")
         print(f"  - Max total words: {max_total_words}")
         print(f"  - Max personas: {max_personas}")
-        print(f"  - Provider speaks first: {provider_speaks_first}")
+        print(f"  - Persona speaks first: {persona_speaks_first}")
 
     # Generate default folder name if not provided
     if folder_name is None:
@@ -112,7 +109,7 @@ async def main(
         max_concurrent=max_concurrent,
         max_total_words=max_total_words,
         max_personas=max_personas,
-        provider_speaks_first=provider_speaks_first,
+        persona_speaks_first=persona_speaks_first,
     )
 
     # Run conversations
@@ -335,6 +332,6 @@ if __name__ == "__main__":
             max_concurrent=args.max_concurrent,
             max_total_words=args.max_total_words,
             max_personas=args.max_personas,
-            provider_speaks_first=args.provider_speaks_first,
+            persona_speaks_first=not args.provider_speaks_first,
         )
     )

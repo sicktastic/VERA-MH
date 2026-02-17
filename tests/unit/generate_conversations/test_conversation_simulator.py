@@ -51,7 +51,7 @@ class TestConversationSimulator:
         assert history[-1]["speaker"] == "provider"
 
     async def test_provider_speaks_first(self):
-        """persona_speaks_first=False: agent speaks first and last (odd max_turns)."""
+        """persona_speaks_first=False: provider speaks first & last (odd max_turns)."""
         persona = MockLLM(
             name="persona",
             role=Role.PERSONA,

@@ -123,7 +123,8 @@ Example:
     parser.add_argument(
         "--provider-speaks-first",
         action="store_true",
-        help="Provider speaks first; max_turns adjusted so provider speaks last.",
+        help="Provider speaks first (persona_speaks_first=False). "
+        "max_turns adjusted so provider speaks last. Default: persona speaks first.",
     )
     parser.add_argument(
         "--user-initial-message",
@@ -274,7 +275,7 @@ async def main():
         max_concurrent=args.max_concurrent,
         max_total_words=args.max_total_words,
         max_personas=args.max_personas,
-        provider_speaks_first=args.provider_speaks_first,
+        persona_speaks_first=not args.provider_speaks_first,
     )
 
     print("")
