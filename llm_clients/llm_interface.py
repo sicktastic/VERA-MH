@@ -116,6 +116,25 @@ class LLMInterface(ABC):
         )
         return [{"turn": 0, "response": trigger}]
 
+    def get_first_turn_input_message(self) -> Optional[str]:
+        """Return the input message used for the first turn, for metadata only.
+
+        Called by the simulator after start_conversation() to record what prompt
+        was sent to the LLM. Returns None if the first turn used initial_message
+        (no LLM call); otherwise returns the trigger text actually used.
+
+        Subclasses that use custom logic in start_conversation() may override
+        this (or set _first_turn_input in start_conversation) so metadata
+        matches what was really sent.
+        """
+        if self.initial_message is not None:
+            return None
+        return (
+            self.trigger_message
+            if self.trigger_message is not None
+            else DEFAULT_TRIGGER_MESSAGE
+        )
+
     @abstractmethod
     async def start_conversation(self) -> str:
         """Produce the first response of the conversation.

@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from generate_conversations import ConversationRunner
+from llm_clients.llm_interface import DEFAULT_TRIGGER_MESSAGE
 from utils.conversation_utils import ensure_provider_has_last_turn
 from utils.debug import set_debug
 from utils.utils import parse_key_value_list
@@ -247,7 +248,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--provider-trigger-message",
         help="Prompt sent to provider LLM when starting conversation (first turn).",
-        default=None,
+        default=DEFAULT_TRIGGER_MESSAGE,
     )
 
     parser.add_argument(
@@ -259,7 +260,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--user-trigger-message",
         help="Prompt sent to user-agent LLM when starting conversation (first turn).",
-        default=None,
+        default=DEFAULT_TRIGGER_MESSAGE,
     )
 
     parser.add_argument(
@@ -282,8 +283,7 @@ if __name__ == "__main__":
     }
     if args.user_initial_message is not None:
         persona_model_config["initial_message"] = args.user_initial_message
-    if args.user_trigger_message is not None:
-        persona_model_config["trigger_message"] = args.user_trigger_message
+    persona_model_config["trigger_message"] = args.user_trigger_message
 
     agent_model_config = {
         "model": args.provider_agent,
@@ -293,8 +293,7 @@ if __name__ == "__main__":
     }
     if args.provider_initial_message is not None:
         agent_model_config["initial_message"] = args.provider_initial_message
-    if args.provider_trigger_message is not None:
-        agent_model_config["trigger_message"] = args.provider_trigger_message
+    agent_model_config["trigger_message"] = args.provider_trigger_message
 
     # TODO: Do the run id here, so that it can be printed when starting
     results, output_folder = asyncio.run(

@@ -5,7 +5,6 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from generate_conversations.conversation_turn import ConversationTurn
 from llm_clients import LLMInterface
-from llm_clients.llm_interface import DEFAULT_TRIGGER_MESSAGE
 from utils.conversation_utils import (
     ensure_provider_has_last_turn,
     save_conversation_to_file,
@@ -89,21 +88,12 @@ class ConversationSimulator:
             else:
                 lc_message = AIMessage(content=response)
 
-            # Determine input message for metadata tracking
-            # Turn 0: trigger_message if LLM used, else None (static first message)
-            # On subsequent turns, we use the previous speaker's response as the input
+            # Determine input message for overall conversation metadata tracking.
+            # Turn 0: ask the client (initial_message vs trigger; overridable).
+            # Later turns: previous speaker's response.
             if turn == 0:
-                # get input message to store in the conversation turn below
-                if current_speaker.initial_message is None:
-                    trigger_message = current_speaker.trigger_message
-                    if trigger_message is None:
-                        input_msg = DEFAULT_TRIGGER_MESSAGE
-                    else:
-                        input_msg = trigger_message
-                else:
-                    input_msg = None
+                input_msg = current_speaker.get_first_turn_input_message()
             else:
-                # Get the last turn's response as input for this turn
                 if self.conversation_history:
                     input_msg = self.conversation_history[-1].response
                 else:

@@ -26,6 +26,7 @@ from judge.score_viz import (
     create_risk_level_visualizations,
     create_visualizations,
 )
+from llm_clients.llm_interface import DEFAULT_TRIGGER_MESSAGE
 from utils.utils import parse_key_value_list
 
 
@@ -137,7 +138,7 @@ Example:
     parser.add_argument(
         "--user-trigger-message",
         help="Prompt sent to user-agent LLM when starting conversation (first turn).",
-        default=None,
+        default=DEFAULT_TRIGGER_MESSAGE,
     )
     parser.add_argument(
         "--provider-initial-message",
@@ -147,7 +148,7 @@ Example:
     parser.add_argument(
         "--provider-trigger-message",
         help="Prompt sent to provider LLM when starting conversation (first turn).",
-        default=None,
+        default=DEFAULT_TRIGGER_MESSAGE,
     )
     parser.add_argument(
         "--debug", action="store_true", help="Enable debug logging for generation"
@@ -244,8 +245,7 @@ async def main():
     }
     if args.user_initial_message is not None:
         persona_model_config["initial_message"] = args.user_initial_message
-    if args.user_trigger_message is not None:
-        persona_model_config["trigger_message"] = args.user_trigger_message
+    persona_model_config["trigger_message"] = args.user_trigger_message
 
     agent_model_config = {
         "model": args.provider_agent,
@@ -254,8 +254,7 @@ async def main():
     }
     if args.provider_initial_message is not None:
         agent_model_config["initial_message"] = args.provider_initial_message
-    if args.provider_trigger_message is not None:
-        agent_model_config["trigger_message"] = args.provider_trigger_message
+    agent_model_config["trigger_message"] = args.provider_trigger_message
 
     # Call generate.py's main function directly
     _, conversation_folder = await generate_main(
