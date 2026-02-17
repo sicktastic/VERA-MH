@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from generate_conversations import ConversationRunner
-from llm_clients.llm_interface import DEFAULT_TRIGGER_MESSAGE
+from llm_clients.llm_interface import DEFAULT_START_PROMPT
 from utils.conversation_utils import ensure_provider_has_last_turn
 from utils.debug import set_debug
 from utils.utils import parse_key_value_list
@@ -240,27 +240,31 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--provider-initial-message",
+        "-pfm",
+        "--provider-first-message",
         help="Static first message from provider (no LLM call for first turn).",
         default=None,
     )
 
     parser.add_argument(
-        "--provider-trigger-message",
+        "-psp",
+        "--provider-start-prompt",
         help="Prompt sent to provider LLM when starting conversation (first turn).",
-        default=DEFAULT_TRIGGER_MESSAGE,
+        default=DEFAULT_START_PROMPT,
     )
 
     parser.add_argument(
-        "--user-initial-message",
+        "-usm",
+        "--user-first-message",
         help="Static first message from user-agent (no LLM call for first turn).",
         default=None,
     )
 
     parser.add_argument(
-        "--user-trigger-message",
+        "-usp",
+        "--user-start-prompt",
         help="Prompt sent to user-agent LLM when starting conversation (first turn).",
-        default=DEFAULT_TRIGGER_MESSAGE,
+        default=DEFAULT_START_PROMPT,
     )
 
     parser.add_argument(
@@ -281,9 +285,9 @@ if __name__ == "__main__":
         "model": args.user_agent,
         **args.user_agent_extra_params,
     }
-    if args.user_initial_message is not None:
-        persona_model_config["initial_message"] = args.user_initial_message
-    persona_model_config["trigger_message"] = args.user_trigger_message
+    if args.user_first_message is not None:
+        persona_model_config["first_message"] = args.user_first_message
+    persona_model_config["start_prompt"] = args.user_start_prompt
 
     agent_model_config = {
         "model": args.provider_agent,
@@ -291,9 +295,9 @@ if __name__ == "__main__":
         "name": args.provider_agent,
         **args.provider_agent_extra_params,
     }
-    if args.provider_initial_message is not None:
-        agent_model_config["initial_message"] = args.provider_initial_message
-    agent_model_config["trigger_message"] = args.provider_trigger_message
+    if args.provider_first_message is not None:
+        agent_model_config["first_message"] = args.provider_first_message
+    agent_model_config["start_prompt"] = args.provider_start_prompt
 
     # TODO: Do the run id here, so that it can be printed when starting
     results, output_folder = asyncio.run(

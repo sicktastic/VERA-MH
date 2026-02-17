@@ -355,7 +355,7 @@ class TestOllamaLLM(TestLLMBase):
         self, mock_ollama, mock_system_message
     ):
         """Test generating response with None uses default trigger."""
-        from llm_clients.llm_interface import DEFAULT_TRIGGER_MESSAGE
+        from llm_clients.llm_interface import DEFAULT_START_PROMPT
         from llm_clients.ollama_llm import OllamaLLM
 
         mock_instance = MagicMock()
@@ -366,7 +366,7 @@ class TestOllamaLLM(TestLLMBase):
         response = await llm.generate_response(None)
 
         # None history: format uses default trigger message
-        expected = f"Human: {DEFAULT_TRIGGER_MESSAGE}\n\nAssistant:"
+        expected = f"Human: {DEFAULT_START_PROMPT}\n\nAssistant:"
         mock_instance.ainvoke.assert_called_once_with(expected)
         assert response == "Default response"
 

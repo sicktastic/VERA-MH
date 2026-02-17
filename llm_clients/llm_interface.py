@@ -18,8 +18,8 @@ class Role(Enum):
     JUDGE = "judge"  # Judge role, used for judge operations
 
 
-# Default prompt sent to the LLM when starting a conversation (trigger mode).
-DEFAULT_TRIGGER_MESSAGE = "Start the conversation based on the system prompt"
+# Default prompt sent to the LLM when starting a conversation (no first_message set).
+DEFAULT_START_PROMPT = "Start the conversation based on the system prompt"
 
 
 class LLMInterface(ABC):
@@ -29,9 +29,9 @@ class LLMInterface(ABC):
     must support basic text generation and system prompt management.
 
     When conversation history is empty:
-    - initial_message: If set, return this string as the first turn (no LLM call).
-    - trigger_message: If initial_message is not set, use this as the prompt to
-      the LLM to generate the first turn. Defaults to DEFAULT_TRIGGER_MESSAGE.
+    - first_message: If set, return this string as the first turn (no LLM call).
+    - start_prompt: If first_message is not set, use this as the prompt to
+      the LLM to generate the first turn. Defaults to DEFAULT_START_PROMPT.
     """
 
     def __init__(
@@ -39,14 +39,14 @@ class LLMInterface(ABC):
         name: str,
         role: Role,
         system_prompt: Optional[str] = None,
-        initial_message: Optional[str] = None,
-        trigger_message: Optional[str] = None,
+        first_message: Optional[str] = None,
+        start_prompt: Optional[str] = None,
     ):
         self.name = name
         self.role = role
         self.system_prompt = system_prompt or ""
-        self.initial_message = initial_message  # static first message (no LLM call)
-        self.trigger_message = trigger_message  # prompt to LLM when history empty
+        self.first_message = first_message  # static first message (no LLM call)
+        self.start_prompt = start_prompt  # prompt to LLM when history empty
         self._last_response_metadata: Dict[str, Any] = {}
         self.conversation_id = self.create_conversation_id()
 
@@ -97,51 +97,47 @@ class LLMInterface(ABC):
             **extra,
         }
 
-    def get_initial_trigger_turns(self) -> List[Dict[str, Any]]:
-        """Build the initial turn(s) used to trigger the LLM when history is empty.
+    def get_initial_prompt_turns(self) -> List[Dict[str, Any]]:
+        """Build the initial turn(s) used to prompt the LLM when history is empty.
 
-        Returns a list of dicts (e.g. [{"turn": 0, "response": "<trigger or
-        DEFAULT_TRIGGER_MESSAGE>"}]) that can be passed to the message builder
+        Returns a list of dicts (e.g. [{"turn": 0, "response": "<start_prompt or
+        DEFAULT_START_PROMPT>"}]) that can be passed to the message builder
         and then to the LLM. Used by raw LLM implementations that delegate from
         start_conversation() to generate_response(...). Subclasses may override.
 
         Returns:
             List of dicts representing the initial conversation turn(s)
-            (e.g. [{"turn": 0, "response": "<trigger text>"}]).
+            (e.g. [{"turn": 0, "response": "<start prompt text>"}]).
         """
-        trigger = (
-            self.trigger_message
-            if self.trigger_message is not None
-            else DEFAULT_TRIGGER_MESSAGE
+        prompt = (
+            self.start_prompt if self.start_prompt is not None else DEFAULT_START_PROMPT
         )
-        return [{"turn": 0, "response": trigger}]
+        return [{"turn": 0, "response": prompt}]
 
     def get_first_turn_input_message(self) -> Optional[str]:
         """Return the input message used for the first turn, for metadata only.
 
         Called by the simulator after start_conversation() to record what prompt
-        was sent to the LLM. Returns None if the first turn used initial_message
-        (no LLM call); otherwise returns the trigger text actually used.
+        was sent to the LLM. Returns None if the first turn used first_message
+        (no LLM call); otherwise returns the start_prompt text actually used.
 
         Subclasses that use custom logic in start_conversation() may override
         this (or set _first_turn_input in start_conversation) so metadata
         matches what was really sent.
         """
-        if self.initial_message is not None:
+        if self.first_message is not None:
             return None
         return (
-            self.trigger_message
-            if self.trigger_message is not None
-            else DEFAULT_TRIGGER_MESSAGE
+            self.start_prompt if self.start_prompt is not None else DEFAULT_START_PROMPT
         )
 
     @abstractmethod
     async def start_conversation(self) -> str:
         """Produce the first response of the conversation.
 
-        Called by the simulator on turn 0. When initial_message is set, return
+        Called by the simulator on turn 0. When first_message is set, return
         it (and set metadata) without calling the API. Otherwise, raw LLM
-        implementations may call generate_response(self.get_initial_trigger_turns());
+        implementations may call generate_response(self.get_initial_prompt_turns());
         service-based clients may call their own start endpoint (e.g. POST
         /start_conversation) and return the returned message.
 
@@ -169,7 +165,7 @@ class LLMInterface(ABC):
                 on whether the first entry is a trigger or a prior response:
 
                 - **Turn 0 as trigger**: When history is built from
-                  get_initial_trigger_turns(), the first entry has turn=0 and
+                  get_initial_prompt_turns(), the first entry has turn=0 and
                   'response' (trigger text). Speaker is not required: that
                   entry is input used to elicit the LLM's first response for
                   turn 1, not a prior utterance.

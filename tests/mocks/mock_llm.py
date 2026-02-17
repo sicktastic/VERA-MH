@@ -18,8 +18,8 @@ class MockLLM(JudgeLLM):
         responses: Optional[List[str]] = None,
         model_name: str = "mock-model",
         system_prompt: Optional[str] = None,
-        initial_message: Optional[str] = None,
-        trigger_message: Optional[str] = None,
+        first_message: Optional[str] = None,
+        start_prompt: Optional[str] = None,
         simulate_error: bool = False,
         temperature: float = 0.7,
         max_tokens: int = 1000,
@@ -28,8 +28,8 @@ class MockLLM(JudgeLLM):
             name,
             role,
             system_prompt,
-            initial_message=initial_message,
-            trigger_message=trigger_message,
+            first_message=first_message,
+            start_prompt=start_prompt,
         )
         self.responses = responses or ["Mock response"]
         self.response_index = 0
@@ -41,11 +41,11 @@ class MockLLM(JudgeLLM):
         self.max_tokens = max_tokens
 
     async def start_conversation(self) -> str:
-        """Produce the first response (static initial_message or next in sequence)."""
-        if self.initial_message is not None:
+        """Produce the first response (static first_message or next in sequence)."""
+        if self.first_message is not None:
             self._set_response_metadata("mock", static_first_message=True)
-            return self.initial_message
-        return await self.generate_response(self.get_initial_trigger_turns())
+            return self.first_message
+        return await self.generate_response(self.get_initial_prompt_turns())
 
     async def generate_response(
         self,

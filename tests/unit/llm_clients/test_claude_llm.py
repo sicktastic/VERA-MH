@@ -471,7 +471,7 @@ class TestClaudeLLM(TestJudgeLLMBase):
         self, mock_chat_anthropic, mock_response_factory
     ):
         """Test start_conversation with empty history uses default trigger."""
-        from llm_clients.llm_interface import DEFAULT_TRIGGER_MESSAGE
+        from llm_clients.llm_interface import DEFAULT_START_PROMPT
 
         mock_response = mock_response_factory(
             text="Response", response_id="msg_empty", provider="claude"
@@ -492,7 +492,7 @@ class TestClaudeLLM(TestJudgeLLMBase):
         messages = call_args[0][0]
         assert len(messages) == 2
         assert messages[0].text == "Test"
-        assert messages[1].content == DEFAULT_TRIGGER_MESSAGE
+        assert messages[1].content == DEFAULT_START_PROMPT
 
     @pytest.mark.asyncio
     @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")
@@ -503,7 +503,7 @@ class TestClaudeLLM(TestJudgeLLMBase):
         """Test generate_response with None
         delegates to start_conversation (default trigger).
         """
-        from llm_clients.llm_interface import DEFAULT_TRIGGER_MESSAGE
+        from llm_clients.llm_interface import DEFAULT_START_PROMPT
 
         mock_response = mock_response_factory(
             text="Response", response_id="msg_none", provider="claude"
@@ -525,7 +525,7 @@ class TestClaudeLLM(TestJudgeLLMBase):
         messages = call_args[0][0]
         assert len(messages) == 2
         assert messages[0].text == "Test"
-        assert messages[1].content == DEFAULT_TRIGGER_MESSAGE
+        assert messages[1].content == DEFAULT_START_PROMPT
 
     @pytest.mark.asyncio
     @patch("llm_clients.claude_llm.Config.ANTHROPIC_API_KEY", "test-key")

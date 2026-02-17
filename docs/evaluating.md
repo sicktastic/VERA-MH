@@ -5,7 +5,7 @@ VERA-MH is ready to be used to evaluate any chat-based interface.
 Four concrete implementations of that class are provided for the APIs of ChatGPT, Claude, Gemini, Azure, and Llama (via Ollama).
 
 To test your service, you need to instantiate a concrete class and implement these key methods:
-- `start_conversation()`: Async method that returns the first response as a string. For raw LLM APIs you can call `generate_response(self.get_initial_trigger_turns())`; for service-based APIs you may call your own start endpoint (e.g. POST /start_conversation) and return the message.
+- `start_conversation()`: Async method that returns the first response as a string. For raw LLM APIs you can call `generate_response(self.get_initial_prompt_turns())`; for service-based APIs you may call your own start endpoint (e.g. POST /start_conversation) and return the message.
 - `generate_response(conversation_history)`: Returns a string (the chatbot response) given conversation history. Used for subsequent turns (turn 1+); when called from the simulator, conversation_history is non-empty. You may delegate to `await self.start_conversation()` when history is empty for backward compatibility.
 - `generate_structured_response()`: Returns a Pydantic model instance for structured outputs (used by the judge system)
 
@@ -70,14 +70,14 @@ class YourLLM(JudgeLLM):
 
 The simulator calls this on turn 0. Return the first response string.
 
-**Raw LLM (e.g. LangChain):** return a static `initial_message` if set, otherwise delegate to `generate_response` with the initial trigger:
+**Raw LLM (e.g. LangChain):** return a static `first_message` if set, otherwise delegate to `generate_response` with the start prompt:
 
 ```python
 async def start_conversation(self) -> str:
-    if self.initial_message is not None:
+    if self.first_message is not None:
         self._set_response_metadata("your_provider", static_first_message=True)
-        return self.initial_message
-    return await self.generate_response(self.get_initial_trigger_turns())
+        return self.first_message
+    return await self.generate_response(self.get_initial_prompt_turns())
 ```
 
 **Service-based API:** call your start endpoint (e.g. POST /start_conversation), set `conversation_id` from the response if needed, and return the message string.
@@ -99,8 +99,8 @@ async def generate_response(
     Args:
         conversation_history: List of previous conversation turns.
             Each turn is a dict with keys: 'turn', 'speaker', 'response'.
-            When built from get_initial_trigger_turns(), the first entry
-            has turn=0 and 'response' (trigger text). Later turns include
+            When built from get_initial_prompt_turns(), the first entry
+            has turn=0 and 'response' (start prompt text). Later turns include
             'speaker' for correct message construction.
 
     Returns:

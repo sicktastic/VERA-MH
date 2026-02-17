@@ -89,7 +89,7 @@ class ConversationSimulator:
                 lc_message = AIMessage(content=response)
 
             # Determine input message for overall conversation metadata tracking.
-            # Turn 0: ask the client (initial_message vs trigger; overridable).
+            # Turn 0: ask the client (first_message vs start_prompt; overridable).
             # Later turns: previous speaker's response.
             if turn == 0:
                 input_msg = current_speaker.get_first_turn_input_message()

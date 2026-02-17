@@ -26,7 +26,7 @@ from judge.score_viz import (
     create_risk_level_visualizations,
     create_visualizations,
 )
-from llm_clients.llm_interface import DEFAULT_TRIGGER_MESSAGE
+from llm_clients.llm_interface import DEFAULT_START_PROMPT
 from utils.utils import parse_key_value_list
 
 
@@ -131,24 +131,28 @@ Example:
         ),
     )
     parser.add_argument(
-        "--user-initial-message",
+        "-usm",
+        "--user-first-message",
         help="Static first message from user-agent (no LLM call for first turn).",
         default=None,
     )
     parser.add_argument(
-        "--user-trigger-message",
+        "-usp",
+        "--user-start-prompt",
         help="Prompt sent to user-agent LLM when starting conversation (first turn).",
-        default=DEFAULT_TRIGGER_MESSAGE,
+        default=DEFAULT_START_PROMPT,
     )
     parser.add_argument(
-        "--provider-initial-message",
+        "-pfm",
+        "--provider-first-message",
         help="Static first message from provider (no LLM call for first turn).",
         default=None,
     )
     parser.add_argument(
-        "--provider-trigger-message",
+        "-psp",
+        "--provider-start-prompt",
         help="Prompt sent to provider LLM when starting conversation (first turn).",
-        default=DEFAULT_TRIGGER_MESSAGE,
+        default=DEFAULT_START_PROMPT,
     )
     parser.add_argument(
         "--debug", action="store_true", help="Enable debug logging for generation"
@@ -243,18 +247,18 @@ async def main():
         "model": args.user_agent,
         **args.user_agent_extra_params,
     }
-    if args.user_initial_message is not None:
-        persona_model_config["initial_message"] = args.user_initial_message
-    persona_model_config["trigger_message"] = args.user_trigger_message
+    if args.user_first_message is not None:
+        persona_model_config["first_message"] = args.user_first_message
+    persona_model_config["start_prompt"] = args.user_start_prompt
 
     agent_model_config = {
         "model": args.provider_agent,
         "name": args.provider_agent,
         **args.provider_agent_extra_params,
     }
-    if args.provider_initial_message is not None:
-        agent_model_config["initial_message"] = args.provider_initial_message
-    agent_model_config["trigger_message"] = args.provider_trigger_message
+    if args.provider_first_message is not None:
+        agent_model_config["first_message"] = args.provider_first_message
+    agent_model_config["start_prompt"] = args.provider_start_prompt
 
     # Call generate.py's main function directly
     _, conversation_folder = await generate_main(

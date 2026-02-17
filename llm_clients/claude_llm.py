@@ -25,14 +25,14 @@ class ClaudeLLM(JudgeLLM):
         model_name: Optional[str] = None,
         **kwargs,
     ):
-        initial_message = kwargs.pop("initial_message", None)
-        trigger_message = kwargs.pop("trigger_message", None)
+        first_message = kwargs.pop("first_message", None)
+        start_prompt = kwargs.pop("start_prompt", None)
         super().__init__(
             name,
             role,
             system_prompt,
-            initial_message=initial_message,
-            trigger_message=trigger_message,
+            first_message=first_message,
+            start_prompt=start_prompt,
         )
 
         if not Config.ANTHROPIC_API_KEY:
@@ -72,11 +72,14 @@ class ClaudeLLM(JudgeLLM):
         self.max_tokens = getattr(self.llm, "max_tokens", None)
 
     async def start_conversation(self) -> str:
-        """Produce the first response (static initial_message or LLM with trigger)."""
-        if self.initial_message is not None:
+        """Produce the first response:
+        - static first_message if set, or
+        - LLM with start_prompt if first_message is not set.
+        """
+        if self.first_message is not None:
             self._set_response_metadata("claude", static_first_message=True)
-            return self.initial_message
-        return await self.generate_response(self.get_initial_trigger_turns())
+            return self.first_message
+        return await self.generate_response(self.get_initial_prompt_turns())
 
     async def generate_response(
         self,

@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from generate_conversations.conversation_simulator import ConversationSimulator
-from llm_clients.llm_interface import DEFAULT_TRIGGER_MESSAGE, Role
+from llm_clients.llm_interface import DEFAULT_START_PROMPT, Role
 from tests.mocks.mock_llm import MockLLM
 
 
@@ -148,13 +148,13 @@ class TestConversationSimulator:
         )
         assert history[0]["response"] == "Started conversation"
 
-    async def test_explicit_initial_message(self):
+    async def test_explicit_first_message(self):
         """Test conversation with static initial message (no LLM call for 1st turn)."""
         persona = MockLLM(
             name="persona",
             role=Role.PERSONA,
             responses=["Response to custom message"],
-            initial_message="Custom start",
+            first_message="Custom start",
         )
         agent = MockLLM(
             name="agent", role=Role.PROVIDER, responses=["Acknowledged custom"]
@@ -398,10 +398,12 @@ class TestConversationSimulator:
 @pytest.mark.unit
 @pytest.mark.asyncio
 class TestFirstSpeakerAndFirstMessageCombinations:
-    """Tests for persona_speaks_first x trigger_message vs initial_message."""
+    """Tests for persona_speaks_first x start_prompt vs first_message."""
 
-    async def test_persona_first_trigger_message(self):
-        """Persona first + trigger: first turn uses trigger, persona responds."""
+    async def test_persona_first_start_prompt(self):
+        """Persona first + start_prompt:
+        first turn uses start_prompt, persona responds.
+        """
         persona = MockLLM(
             name="persona",
             role=Role.PERSONA,
@@ -417,17 +419,17 @@ class TestFirstSpeakerAndFirstMessageCombinations:
         history = await simulator.generate_conversation(max_turns=2)
 
         assert history[0]["speaker"] == "persona"
-        assert history[0]["input"] == DEFAULT_TRIGGER_MESSAGE
+        assert history[0]["input"] == DEFAULT_START_PROMPT
         assert history[0]["response"] == "Hello from persona"
         assert history[1]["speaker"] == "provider"
 
-    async def test_persona_first_initial_message(self):
-        """Persona first + initial_message: first turn input None, static response."""
+    async def test_persona_first_first_message(self):
+        """Persona first + first_message: first turn input None, static response."""
         persona = MockLLM(
             name="persona",
             role=Role.PERSONA,
             responses=["Second message"],
-            initial_message="Static hello",
+            first_message="Static hello",
         )
         agent = MockLLM(
             name="agent",
@@ -444,8 +446,10 @@ class TestFirstSpeakerAndFirstMessageCombinations:
         assert "Static hello" in agent.calls
         assert history[1]["speaker"] == "provider"
 
-    async def test_agent_first_trigger_message(self):
-        """Agent first, no initial_message: first turn uses trigger, agent responds."""
+    async def test_provider_first_start_prompt(self):
+        """Provider first, no first_message:
+        first turn uses start_prompt, provider responds.
+        """
         persona = MockLLM(
             name="persona",
             role=Role.PERSONA,
@@ -454,7 +458,7 @@ class TestFirstSpeakerAndFirstMessageCombinations:
         agent = MockLLM(
             name="agent",
             role=Role.PROVIDER,
-            responses=["Agent opening"],
+            responses=["Provider opening"],
         )
         simulator = ConversationSimulator(persona=persona, agent=agent)
 
@@ -464,23 +468,25 @@ class TestFirstSpeakerAndFirstMessageCombinations:
         )
 
         assert history[0]["speaker"] == "provider"
-        assert history[0]["input"] == DEFAULT_TRIGGER_MESSAGE
-        assert history[0]["response"] == "Agent opening"
+        assert history[0]["input"] == DEFAULT_START_PROMPT
+        assert history[0]["response"] == "Provider opening"
         assert history[1]["speaker"] == "persona"
-        assert "Agent opening" in persona.calls
+        assert "Provider opening" in persona.calls
 
-    async def test_agent_first_initial_message(self):
-        """Agent first + initial_message: first turn input None, static agent msg."""
+    async def test_provider_first_first_message(self):
+        """Provider first + first_message:
+        first turn input None, static provider msg.
+        """
         persona = MockLLM(
             name="persona",
             role=Role.PERSONA,
-            responses=["User reply to agent"],
+            responses=["User reply to provider"],
         )
         agent = MockLLM(
             name="agent",
             role=Role.PROVIDER,
-            responses=["Second agent line"],
-            initial_message="Agent says hello first",
+            responses=["Second provider line"],
+            first_message="Provider says hello first",
         )
         simulator = ConversationSimulator(persona=persona, agent=agent)
 
@@ -491,6 +497,6 @@ class TestFirstSpeakerAndFirstMessageCombinations:
 
         assert history[0]["speaker"] == "provider"
         assert history[0]["input"] is None
-        assert history[0]["response"] == "Agent says hello first"
+        assert history[0]["response"] == "Provider says hello first"
         assert history[1]["speaker"] == "persona"
-        assert "Agent says hello first" in persona.calls
+        assert "Provider says hello first" in persona.calls
