@@ -100,8 +100,11 @@ async def generate_response(
         conversation_history: List of previous conversation turns.
             Each turn is a dict with keys: 'turn', 'speaker', 'response'.
             When built from get_initial_prompt_turns(), the first entry
-            has turn=0 and 'response' (start prompt text). Later turns include
-            'speaker' for correct message construction.
+            has turn=0 and 'response' (start prompt text).
+            Turn 0 does not require `speaker` as this particular message
+            is not considered in the `build_langchain_messages` method to 
+            construct proper Human/AIMessage type for an LLM to properly understand.
+            Later turns must include 'speaker' for correct message construction.
 
     Returns:
         The LLM's response as a string
