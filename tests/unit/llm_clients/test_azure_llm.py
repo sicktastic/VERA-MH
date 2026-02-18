@@ -307,7 +307,7 @@ class TestAzureLLM(TestJudgeLLMBase):
     async def test_generate_response_with_empty_conversation_history(
         self, mock_azure_config, mock_azure_model
     ):
-        """Test start_conversation with empty history uses default trigger."""
+        """Test start_conversation with empty history uses default start_prompt."""
         from llm_clients.llm_interface import DEFAULT_START_PROMPT
 
         mock_response = create_mock_response(

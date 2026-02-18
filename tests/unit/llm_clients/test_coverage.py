@@ -267,7 +267,7 @@ class TestLLMCoverage:
             + "\n".join(f"  - {impl}" for impl in missing_empty_history_tests)
             + "\n\nAll LLM implementations must define "
             + "test_generate_response_with_empty_conversation_history "
-            + "to verify start_conversation / default trigger with empty history."
+            + "to verify start_conversation / default start_prompt with empty history."
         )
 
     def test_all_test_classes_inherit_from_appropriate_base(self):

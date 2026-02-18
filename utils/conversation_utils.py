@@ -171,7 +171,7 @@ def build_langchain_messages(
             if turn_number is None or text is None:
                 continue
 
-            # Special case: turn 0 is the trigger for the LLM to start the conversation.
+            # Special case: turn 0 is for starting the conversation.
             if turn_number == 0:
                 debug_print(f"  Turn 0 -> HumanMessage (initial): {text[:50]}...")
                 messages.append(HumanMessage(content=text))

@@ -470,7 +470,7 @@ class TestClaudeLLM(TestJudgeLLMBase):
     async def test_generate_response_with_empty_conversation_history(
         self, mock_chat_anthropic, mock_response_factory
     ):
-        """Test start_conversation with empty history uses default trigger."""
+        """Test start_conversation with empty history uses default start_prompt."""
         from llm_clients.llm_interface import DEFAULT_START_PROMPT
 
         mock_response = mock_response_factory(
@@ -487,7 +487,7 @@ class TestClaudeLLM(TestJudgeLLMBase):
 
         assert response == "Response"
 
-        # Empty history: SystemMessage + HumanMessage(default trigger)
+        # Empty history: SystemMessage + HumanMessage(default start_prompt)
         call_args = mock_llm.ainvoke.call_args
         messages = call_args[0][0]
         assert len(messages) == 2
@@ -501,7 +501,7 @@ class TestClaudeLLM(TestJudgeLLMBase):
         self, mock_chat_anthropic, mock_response_factory
     ):
         """Test generate_response with None
-        delegates to start_conversation (default trigger).
+        delegates to start_conversation (default start_prompt).
         """
         from llm_clients.llm_interface import DEFAULT_START_PROMPT
 
@@ -520,7 +520,7 @@ class TestClaudeLLM(TestJudgeLLMBase):
 
         assert response == "Response"
 
-        # None history: SystemMessage + HumanMessage(default trigger)
+        # None history: SystemMessage + HumanMessage(default start_prompt)
         call_args = mock_llm.ainvoke.call_args
         messages = call_args[0][0]
         assert len(messages) == 2
