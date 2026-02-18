@@ -18,6 +18,10 @@ class ConcreteLLM(LLMInterface):
         self.llm.temperature = 0.7
         self.llm.max_tokens = 1000
 
+    async def start_conversation(self) -> str:
+        """Concrete implementation of abstract method."""
+        return "test response"
+
     async def generate_response(self, conversation_history=None):
         """Concrete implementation of abstract method."""
         return "test response"
@@ -109,6 +113,9 @@ class TestLLMInterface:
         class MinimalLLM(LLMInterface):
             """Minimal implementation without self.llm."""
 
+            async def start_conversation(self) -> str:
+                return "response"
+
             async def generate_response(self, conversation_history=None):
                 return "response"
 
@@ -132,6 +139,9 @@ class TestLLMInterface:
             ):
                 super().__init__(name, role, system_prompt)
                 self.llm = None
+
+            async def start_conversation(self) -> str:
+                return "response"
 
             async def generate_response(self, conversation_history=None):
                 return "response"
@@ -193,6 +203,9 @@ class TestLLMInterface:
                 self.llm.bool_attr = True
                 self.llm.list_attr = [1, 2, 3]
 
+            async def start_conversation(self) -> str:
+                return "response"
+
             async def generate_response(self, conversation_history=None):
                 return "response"
 
@@ -252,7 +265,7 @@ class TestLLMInterface:
 
     @pytest.mark.asyncio
     async def test_conversation_id_available_after_generate_response(self):
-        """Test that conversation_id remains set after generate_response."""
+        """Test that conversation_id remains set after start_conversation."""
         llm = ConcreteLLM(name="TestLLM", role=Role.PROVIDER)
-        await llm.generate_response(conversation_history=[])
+        await llm.start_conversation()
         assert llm.conversation_id is not None

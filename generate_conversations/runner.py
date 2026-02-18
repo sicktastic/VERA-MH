@@ -35,6 +35,7 @@ class ConversationRunner:
         max_concurrent: Optional[int] = None,
         max_total_words: Optional[int] = None,
         max_personas: Optional[int] = None,
+        persona_speaks_first: bool = True,
     ):
         self.persona_model_config = persona_model_config
         self.agent_model_config = agent_model_config
@@ -48,6 +49,7 @@ class ConversationRunner:
         self.max_concurrent = max_concurrent
         self.max_total_words = max_total_words
         self.max_personas = max_personas
+        self.persona_speaks_first = persona_speaks_first
 
     async def run_single_conversation(
         self,
@@ -126,8 +128,8 @@ class ConversationRunner:
             llm1_prompt=persona_name,
             llm2_name=agent.name,
             llm2_model_str=getattr(agent, "model_name", "unknown"),
-            initial_message="",
             max_turns=max_turns,
+            persona_speaks_first=self.persona_speaks_first,
             llm1_model=persona,
             llm2_model=agent,
         )
@@ -138,10 +140,10 @@ class ConversationRunner:
 
         result = None
         try:
-            conversation = await simulator.start_conversation(
-                initial_message=None,
+            conversation = await simulator.generate_conversation(
                 max_turns=max_turns,
                 max_total_words=self.max_total_words,
+                persona_speaks_first=self.persona_speaks_first,
             )
 
             # Log each conversation turn
