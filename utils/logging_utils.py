@@ -58,6 +58,7 @@ def log_conversation_start(
     llm2_name: str,
     llm2_model_str: str,
     max_turns: int,
+    persona_speaks_first: bool,
     llm1_model: LLMInterface,
     llm2_model: LLMInterface,
     logging: dict = {},
@@ -79,6 +80,7 @@ def log_conversation_start(
     logger.info(f"Configuration, max_tokens: {llm2_model.max_tokens}")
     logger.info("Conversation Settings:")
     logger.info(f"  - Max Turns: {max_turns}")
+    logger.info(f"  - Persona speaks first: {persona_speaks_first}")
     logger.info("=" * 60)
 
 

@@ -132,6 +132,7 @@ class ConversationRunner:
             llm2_name=agent.name,
             llm2_model_str=getattr(agent, "model_name", "unknown"),
             max_turns=max_turns,
+            persona_speaks_first=self.persona_speaks_first,
             llm1_model=persona,
             llm2_model=agent,
         )
