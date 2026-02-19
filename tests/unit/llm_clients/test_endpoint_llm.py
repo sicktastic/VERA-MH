@@ -185,6 +185,25 @@ class TestEndpointLLM(TestLLMBase):
         mock_session_class.return_value.__aenter__.return_value.post.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_conversation_id_overwritten_when_endpoint_returns_different(
+        self, mock_system_message
+    ):
+        """Endpoint response conversation_id overwrites client-generated id."""
+        client_cid = "client-generated-cid"
+        server_cid = "server-returned-cid"
+        with self.get_mock_patches():
+            with patch(
+                "llm_clients.endpoint_llm.aiohttp.ClientSession",
+                new_callable=lambda: _make_aiohttp_mock(
+                    content="OK", conversation_id=server_cid
+                ),
+            ):
+                llm = EndpointLLM(name="ep", role=Role.PROVIDER)
+                llm.conversation_id = client_cid
+                await llm.generate_response(conversation_history=mock_system_message)
+        assert llm.conversation_id == server_cid
+
+    @pytest.mark.asyncio
     async def test_generate_response_with_empty_conversation_history(self):
         """Verify start_conversation / default start_prompt with empty history."""
         with self.get_mock_patches():
