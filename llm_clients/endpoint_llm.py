@@ -38,7 +38,8 @@ class EndpointLLM(LLMInterface):
         )
 
         cfg = Config.get_endpoint_config()
-        self._base_url = (base_url or cfg["base_url"]).rstrip("/")
+        self._base_url = base_url or cfg["base_url"]
+        self._start_url = cfg.get("start_url", None)
         self._api_key = api_key or cfg["api_key"]
 
         if model_name and model_name.lower().startswith("endpoint-"):
@@ -62,21 +63,21 @@ class EndpointLLM(LLMInterface):
         return None
 
     async def start_conversation(self) -> str:
-        """Produce the first response: static first_message if set, else call API."""
+        """Produce the first conversational turn:
+        - static first_message if set, or
+        - API call to start_url if set, or
+        - API call to /api/chat with start_prompt if neither is set.
+        """
         if self.first_message is not None:
             self._set_response_metadata("endpoint", static_first_message=True)
             return self.first_message
+        elif self._start_url is not None:
+            start_time = time.time()
+            resp_data = await self._ainvoke(self._start_url, self.start_prompt)
+            return self._process_chat_response(
+                resp_data, round(time.time() - start_time, 3)
+            )
         else:
-            # Example: call a dedicated start endpoint instead of /api/chat
-            # start_url = f"{self._base_url}/start_convo"
-            # turns = self.get_initial_prompt_turns()
-            # content = turns[0].get("response", "") if turns else ""  # initial prompt
-            # resp_data = await self._ainvoke(start_url, content)
-            # msg_data = resp_data.get("message") or {}
-            # self._set_response_metadata("endpoint",
-            #     conversation_id=resp_data.get("conversation_id"), ...)
-            # self._update_conversation_id_from_metadata()
-            # return msg_data.get("content", "")
             return await self.generate_response(self.get_initial_prompt_turns())
 
     def _default_headers(self) -> Dict[str, str]:
@@ -85,6 +86,40 @@ class EndpointLLM(LLMInterface):
             "X-API-Key": self._api_key,
             "Content-Type": "application/json",
         }
+
+    def _process_chat_response(
+        self, resp_data: Dict[str, Any], response_time_seconds: float
+    ) -> str:
+        """Extract message text from API response and set metadata. Return content."""
+        msg_data = resp_data.get("message") or {}
+        msg_text: str = msg_data.get("content", "")
+
+        usage = {}
+        if resp_data.get("prompt_eval_count") is not None:
+            usage["prompt_tokens"] = resp_data.get("prompt_eval_count", 0)
+        if resp_data.get("eval_count") is not None:
+            usage["completion_tokens"] = resp_data.get("eval_count", 0)
+        if usage:
+            usage.setdefault("prompt_tokens", 0)
+            usage.setdefault("completion_tokens", 0)
+            usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
+
+        self._set_response_metadata(
+            "endpoint",
+            model=resp_data.get("model", self._api_model),
+            response_id=msg_data.get("id"),
+            usage=usage,
+            conversation_id=resp_data.get("conversation_id"),
+            response_time_seconds=response_time_seconds,
+            total_duration=resp_data.get("total_duration"),
+            load_duration=resp_data.get("load_duration"),
+            prompt_eval_count=resp_data.get("prompt_eval_count"),
+            prompt_eval_duration=resp_data.get("prompt_eval_duration"),
+            eval_count=resp_data.get("eval_count"),
+            eval_duration=resp_data.get("eval_duration"),
+        )
+        self._update_conversation_id_from_metadata()
+        return msg_text
 
     def _build_body(self, content: str) -> Dict[str, Any]:
         """Body: model, messages (user content), stream, conversation_id."""
@@ -133,41 +168,9 @@ class EndpointLLM(LLMInterface):
         try:
             start_time = time.time()
             resp_data = await self._ainvoke(self._base_url, last_message)
-            end_time = time.time()
-
-            msg_data = resp_data.get("message") or {}
-            msg_text: str = msg_data.get("content", "")
-
-            server_conversation_id = resp_data.get("conversation_id")
-            usage = {}
-            if resp_data.get("prompt_eval_count") is not None:
-                usage["prompt_tokens"] = resp_data.get("prompt_eval_count", 0)
-            if resp_data.get("eval_count") is not None:
-                usage["completion_tokens"] = resp_data.get("eval_count", 0)
-            if usage:
-                usage.setdefault("prompt_tokens", 0)
-                usage.setdefault("completion_tokens", 0)
-                usage["total_tokens"] = (
-                    usage["prompt_tokens"] + usage["completion_tokens"]
-                )
-
-            self._set_response_metadata(
-                "endpoint",
-                model=resp_data.get("model", self._api_model),
-                response_id=msg_data.get("id"),
-                usage=usage,
-                conversation_id=server_conversation_id,
-                response_time_seconds=round(end_time - start_time, 3),
-                total_duration=resp_data.get("total_duration"),
-                load_duration=resp_data.get("load_duration"),
-                prompt_eval_count=resp_data.get("prompt_eval_count"),
-                prompt_eval_duration=resp_data.get("prompt_eval_duration"),
-                eval_count=resp_data.get("eval_count"),
-                eval_duration=resp_data.get("eval_duration"),
+            return self._process_chat_response(
+                resp_data, round(time.time() - start_time, 3)
             )
-            self._update_conversation_id_from_metadata()
-
-            return msg_text
         except Exception as e:
             self._set_response_metadata("endpoint", error=str(e))
             self._update_conversation_id_from_metadata()

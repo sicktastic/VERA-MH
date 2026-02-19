@@ -32,8 +32,9 @@ class Config:
     AZURE_API_VERSION = os.getenv("AZURE_API_VERSION")  # Optional
 
     # Custom endpoint (chat-only provider)
-    ENDPOINT_URL = os.getenv("ENDPOINT_URL", "http://0.0.0.0:8000")
-    ENDPOINT_API_KEY = os.getenv("ENDPOINT_API_KEY", "howdy")
+    ENDPOINT_API_KEY = os.getenv("ENDPOINT_API_KEY", None)
+    ENDPOINT_URL = os.getenv("ENDPOINT_URL", None)
+    ENDPOINT_START_URL = os.getenv("ENDPOINT_START_URL", None)
 
     @classmethod
     def get_claude_config(cls) -> Dict[str, Any]:
@@ -91,9 +92,24 @@ class Config:
 
         Returns base_url (no /api/chat path), api_key, and default model.
         Runtime parameters can override via kwargs.
+        Raises ValueError if ENDPOINT_API_KEY, ENDPOINT_URL, or ENDPOINT_START_URL
+        are not set in the environment.
         """
+        missing = []
+        if cls.ENDPOINT_API_KEY is None:
+            missing.append("ENDPOINT_API_KEY")
+        if cls.ENDPOINT_URL is None:
+            missing.append("ENDPOINT_URL")
+        if cls.ENDPOINT_START_URL is None:
+            print("ENDPOINT_START_URL is not set in the environment.")
+        if missing:
+            raise ValueError(
+                "Custom endpoint requires these environment variables: "
+                f"{', '.join(missing)}"
+            )
         return {
-            "base_url": cls.ENDPOINT_URL.rstrip("/"),
+            "base_url": cls.ENDPOINT_URL,
             "api_key": cls.ENDPOINT_API_KEY,
+            "start_url": cls.ENDPOINT_START_URL,
             "model": "phi4",
         }
