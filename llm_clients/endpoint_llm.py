@@ -15,6 +15,12 @@ class EndpointLLM(LLMInterface):
     The API manages conversation history server-side via conversation_id.
     This implementation does not support structured output and cannot be used
     as a judge. For judge operations, use Claude, OpenAI, Gemini, or Azure.
+
+    System prompt: This class accepts system_prompt (from LLMInterface) for
+    interface consistency and as an example for subclasses. By default we do
+    not send it to the endpoint as custom APIs typically manage system context
+    themselves. To apply it (e.g. prefix first user message with
+    \"System: ...\"), override generate_response or _build_body in a subclass.
     """
 
     def __init__(
@@ -122,7 +128,9 @@ class EndpointLLM(LLMInterface):
         return msg_text
 
     def _build_body(self, content: str) -> Dict[str, Any]:
-        """Body: model, messages (user content), stream, conversation_id."""
+        """Body: model, messages (user content only), stream, conversation_id.
+        System prompt is not included; see class docstring.
+        """
         return {
             "model": self._api_model,
             "messages": [{"role": "user", "content": content}],
@@ -156,14 +164,14 @@ class EndpointLLM(LLMInterface):
     ) -> str:
         """Generate a response via POST /api/chat with server-side conversation_id.
 
-        The API does not accept a system role; the system prompt is folded into
-        the first user message as \"System: ...\".
+        Only the latest user content is sent; self.system_prompt is not included
+        in the request (see class docstring for rationale).
         """
         if not conversation_history or len(conversation_history) == 0:
             return await self.start_conversation()
 
         messages = build_langchain_messages(self.role, conversation_history)
-        last_message = messages[-1].text
+        last_message = messages[-1].text  # no system_prompt in payload by design
 
         try:
             start_time = time.time()
