@@ -44,9 +44,14 @@ class EndpointLLM(LLMInterface):
         )
 
         cfg = Config.get_endpoint_config()
+        self._api_key = api_key or cfg["api_key"]
         self._base_url = base_url or cfg["base_url"]
         self._start_url = cfg.get("start_url", None)
-        self._api_key = api_key or cfg["api_key"]
+
+        # NOTE: if start_url is set, we don't need to use the start_prompt
+        # unless the developer wants to utilize it
+        if self._start_url is not None:
+            self.start_prompt = None
 
         if model_name and model_name.lower().startswith("endpoint-"):
             self._api_model = model_name[len("endpoint-") :].strip() or cfg["model"]
