@@ -604,7 +604,7 @@ def test_load_personas_risk_levels_basic(tmp_path):
     """Test loading persona risk levels from TSV file."""
     personas_path = tmp_path / "personas.tsv"
     personas_path.write_text(
-        "Name\tAge\tGender\tCurrent Risk Level\tCrisis History\n"
+        "Name\tAge\tGender\tShort Current Suicide Risk Level\tCrisis History\n"
         "Brian\t30\tMale\tHigh\tPast crisis\n"
         "Sarah\t25\tFemale\tLow\tNone\n"
         "Mike\t35\tMale\tImminent\tMultiple\n"
@@ -625,7 +625,7 @@ def test_load_personas_risk_levels_preserves_none_string(tmp_path):
     """Test that 'None' risk level is preserved as string, not NaN."""
     personas_path = tmp_path / "personas.tsv"
     personas_path.write_text(
-        "Name\tAge\tGender\tCurrent Risk Level\tCrisis History\n"
+        "Name\tAge\tGender\tShort Current Suicide Risk Level\tCrisis History\n"
         "Emma\t28\tFemale\tNone\tNone\n"
     )
 
@@ -641,7 +641,7 @@ def test_load_personas_risk_levels_strips_whitespace(tmp_path):
     """Test that whitespace is stripped from risk levels."""
     personas_path = tmp_path / "personas_spaces.tsv"
     personas_path.write_text(
-        "Name\tAge\tGender\tCurrent Risk Level\tCrisis History\n"
+        "Name\tAge\tGender\tShort Current Suicide Risk Level\tCrisis History\n"
         "John\t30\tMale\t  High  \tPast crisis\n"
     )
 
@@ -662,7 +662,7 @@ def test_build_dataframe_from_tsv_files_with_risk_basic(tmp_path):
     eval_dir.mkdir()
     personas_path = tmp_path / "personas.tsv"
     personas_path.write_text(
-        "Name\tAge\tGender\tCurrent Risk Level\tCrisis History\n"
+        "Name\tAge\tGender\tShort Current Suicide Risk Level\tCrisis History\n"
         "Brian\t30\tMale\tHigh\tPast crisis\n"
         "Sarah\t25\tFemale\tLow\tNone\n"
         "Mike\t35\tMale\tImminent\tMultiple\n"
@@ -698,7 +698,7 @@ def test_build_dataframe_from_tsv_files_with_risk_multiple_personas(tmp_path):
     eval_dir.mkdir()
     personas_path = tmp_path / "personas.tsv"
     personas_path.write_text(
-        "Name\tAge\tGender\tCurrent Risk Level\tCrisis History\n"
+        "Name\tAge\tGender\tShort Current Suicide Risk Level\tCrisis History\n"
         "Brian\t30\tMale\tHigh\tPast crisis\n"
         "Sarah\t25\tFemale\tLow\tNone\n"
         "Mike\t35\tMale\tImminent\tMultiple\n"
@@ -734,7 +734,7 @@ def test_build_dataframe_from_tsv_files_with_risk_unknown_persona(tmp_path):
     eval_dir.mkdir()
     personas_path = tmp_path / "personas.tsv"
     personas_path.write_text(
-        "Name\tAge\tGender\tCurrent Risk Level\tCrisis History\n"
+        "Name\tAge\tGender\tShort Current Suicide Risk Level\tCrisis History\n"
         "Brian\t30\tMale\tHigh\tPast crisis\n"
     )
 
