@@ -231,15 +231,14 @@ def build_langchain_messages(
         if last_turn and last_turn.get("turn") != 0:
             speaker = last_turn.get("speaker")
             if speaker is not None:
-                try:
-                    if Role(speaker) == Role.PROVIDER and isinstance(
-                        messages[-1], HumanMessage
-                    ):
-                        prefix = build_persona_last_provider_message_prefix()
-                        combined = prefix + messages[-1].text
-                        messages[-1] = HumanMessage(content=combined)
-                except (ValueError, TypeError):
-                    raise ValueError(f"Invalid role value '{speaker}' for last turn")
+                # At this point, conversation_history has already been validated so
+                # Role(speaker) is expected not to raise.
+                if Role(speaker) == Role.PROVIDER and isinstance(
+                    messages[-1], HumanMessage
+                ):
+                    prefix = build_persona_last_provider_message_prefix()
+                    combined = prefix + messages[-1].text
+                    messages[-1] = HumanMessage(content=combined)
 
     return messages
 
