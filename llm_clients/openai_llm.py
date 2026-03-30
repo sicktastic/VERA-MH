@@ -17,6 +17,13 @@ T = TypeVar("T", bound=BaseModel)
 class OpenAILLM(JudgeLLM):
     """OpenAI implementation using LangChain."""
 
+    def _no_retry_substrings(self) -> tuple[str, ...]:
+        return (
+            "insufficient_quota",
+            "billing_hard_limit",
+            "Your account is not active",
+        )
+
     def __init__(
         self,
         name: str,
@@ -106,7 +113,7 @@ class OpenAILLM(JudgeLLM):
             content_preview = preview + "..." if len(msg.text) > 100 else msg.text
             debug_print(f"  {i + 1}. {msg_type}: {content_preview}")
 
-        try:
+        async def _invoke() -> str:
             start_time = time.time()
             response = await self.llm.ainvoke(messages)
             end_time = time.time()
@@ -127,15 +134,12 @@ class OpenAILLM(JudgeLLM):
                     response.additional_kwargs
                 )
 
-            # Extract response_metadata if available
             if hasattr(response, "response_metadata") and response.response_metadata:
                 metadata = response.response_metadata
 
-                # Update model name from response metadata
                 if "model_name" in metadata:
                     self._last_response_metadata["model"] = metadata["model_name"]
 
-                # Extract token usage from response_metadata
                 if "token_usage" in metadata:
                     token_usage = metadata["token_usage"]
                     self._last_response_metadata["usage"] = {
@@ -144,7 +148,6 @@ class OpenAILLM(JudgeLLM):
                         "total_tokens": token_usage.get("total_tokens", 0),
                     }
 
-                # Extract other metadata fields
                 self._last_response_metadata["finish_reason"] = metadata.get(
                     "finish_reason"
                 )
@@ -153,13 +156,10 @@ class OpenAILLM(JudgeLLM):
                 )
                 self._last_response_metadata["logprobs"] = metadata.get("logprobs")
 
-                # Store raw response_metadata
                 self._last_response_metadata["raw_response_metadata"] = dict(metadata)
 
-            # Extract usage_metadata if available (separate from response_metadata)
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 usage_meta = response.usage_metadata
-                # Merge with existing usage info, preferring usage_metadata values
                 self._last_response_metadata["usage"].update(
                     {
                         "input_tokens": usage_meta.get("input_tokens", 0),
@@ -167,19 +167,11 @@ class OpenAILLM(JudgeLLM):
                         "total_tokens": usage_meta.get("total_tokens", 0),
                     }
                 )
-                # Store raw usage_metadata
                 self._last_response_metadata["raw_usage_metadata"] = dict(usage_meta)
 
             return response.text
-        except Exception as e:
-            self._set_response_metadata(
-                "openai",
-                error=str(e),
-                additional_kwargs={},
-                system_fingerprint=None,
-                logprobs=None,
-            )
-            return f"Error generating response: {str(e)}"
+
+        return await self._run_with_retry(_invoke)
 
     async def generate_structured_response(
         self, message: Optional[str], response_model: Type[T]
@@ -200,8 +192,7 @@ class OpenAILLM(JudgeLLM):
 
         messages.append(HumanMessage(content=message))
 
-        try:
-            # Create a structured LLM using with_structured_output
+        async def _invoke() -> T:
             structured_llm = self.llm.with_structured_output(response_model)
 
             start_time = time.time()
@@ -214,16 +205,14 @@ class OpenAILLM(JudgeLLM):
                 structured_output=True,
             )
 
-            # Ensure response is the correct type
             if not isinstance(response, response_model):
                 raise ValueError(
                     f"Response is not an instance of {response_model.__name__}"
                 )
 
             return response  # type: ignore[return-value]
-        except Exception as e:
-            self._set_response_metadata("openai", error=str(e))
-            raise RuntimeError(f"Error generating structured response: {str(e)}") from e
+
+        return await self._run_with_retry(_invoke)
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """Set or update the system prompt."""

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from llm_clients import Role
-from llm_clients.llm_interface import LLMInterface
+from llm_clients.llm_interface import LLMGenerationFailed, LLMInterface
 
 
 class ConcreteLLM(LLMInterface):
@@ -35,6 +35,40 @@ class IncompleteLLM(LLMInterface):
     """Incomplete implementation to test abstract method enforcement."""
 
     pass
+
+
+class RetryHarness(LLMInterface):
+    """Concrete LLM for testing _run_with_retry."""
+
+    def __init__(self) -> None:
+        super().__init__("harness", Role.PROVIDER)
+        self._call_n = 0
+        self.fail_count = 0
+
+    async def start_conversation(self) -> str:
+        return ""
+
+    async def generate_response(self, conversation_history=None):
+        return ""
+
+    def set_system_prompt(self, system_prompt: str) -> None:
+        pass
+
+    async def flaky_ok_on_third(self) -> str:
+        async def inner() -> str:
+            self._call_n += 1
+            if self._call_n < 3:
+                raise RuntimeError("transient")
+            return "done"
+
+        return await self._run_with_retry(inner)
+
+    async def always_fail(self) -> None:
+        async def inner() -> str:
+            self.fail_count += 1
+            raise RuntimeError("always")
+
+        await self._run_with_retry(inner)
 
 
 @pytest.mark.unit
@@ -269,3 +303,51 @@ class TestLLMInterface:
         llm = ConcreteLLM(name="TestLLM", role=Role.PROVIDER)
         await llm.start_conversation()
         assert llm.conversation_id is not None
+
+    @pytest.mark.asyncio
+    async def test_run_with_retry_succeeds_after_transient_failures(self):
+        h = RetryHarness()
+        assert await h.flaky_ok_on_third() == "done"
+        assert h._call_n == 3
+
+    @pytest.mark.asyncio
+    async def test_run_with_retry_raises_after_max_attempts(self):
+        h = RetryHarness()
+        with pytest.raises(LLMGenerationFailed) as exc:
+            await h.always_fail()
+        assert "always" in str(exc.value)
+        assert exc.value.__cause__ is not None
+        assert h.fail_count == 4
+
+    @pytest.mark.asyncio
+    async def test_run_with_retry_no_retry_substrings_wraps_without_extra_attempts(
+        self,
+    ):
+        h = RetryHarness()
+        attempts = 0
+
+        async def inner() -> str:
+            nonlocal attempts
+            attempts += 1
+            raise RuntimeError("stop: insufficient_quota exceeded")
+
+        with pytest.raises(LLMGenerationFailed) as exc:
+            await h._run_with_retry(
+                inner,
+                no_retry_substrings=("insufficient_quota",),
+            )
+        assert attempts == 1
+        assert "insufficient_quota" in str(exc.value)
+        assert exc.value.__cause__ is not None
+        assert "insufficient_quota" in str(exc.value.__cause__)
+
+    @pytest.mark.asyncio
+    async def test_run_with_retry_llm_generation_failed_propagates(self):
+        h = RetryHarness()
+
+        async def inner() -> str:
+            raise LLMGenerationFailed("fatal")
+
+        with pytest.raises(LLMGenerationFailed) as exc:
+            await h._run_with_retry(inner)
+        assert str(exc.value) == "fatal"

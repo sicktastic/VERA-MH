@@ -109,7 +109,12 @@ async def main(
     results = await runner.run_conversations(persona_names=persona_names)
 
     if verbose:
-        print(f"✅ Generated {len(results)} conversations → {folder_name}/")
+        skipped_n = sum(1 for r in results if r.get("skipped"))
+        ok_n = len(results) - skipped_n
+        msg = f"✅ Generated {ok_n} conversations → {folder_name}/"
+        if skipped_n:
+            msg += f" ({skipped_n} skipped)"
+        print(msg)
 
     return results, folder_name
 

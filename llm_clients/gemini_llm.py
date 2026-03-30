@@ -107,7 +107,7 @@ class GeminiLLM(JudgeLLM):
             content_preview = preview + "..." if len(msg.text) > 100 else msg.text
             debug_print(f"  {i + 1}. {msg_type}: {content_preview}")
 
-        try:
+        async def _invoke() -> str:
             start_time = time.time()
             response = await self.llm.ainvoke(messages)
             end_time = time.time()
@@ -129,7 +129,6 @@ class GeminiLLM(JudgeLLM):
             if hasattr(response, "response_metadata") and response.response_metadata:
                 metadata = response.response_metadata
 
-                # Extract token usage - Gemini may have different structure
                 if "usage_metadata" in metadata:
                     usage = metadata["usage_metadata"]
                     self._last_response_metadata["usage"] = {
@@ -140,7 +139,6 @@ class GeminiLLM(JudgeLLM):
                         "total_token_count": usage.get("total_token_count", 0),
                     }
                 elif "token_usage" in metadata:
-                    # Fallback structure
                     usage = metadata["token_usage"]
                     self._last_response_metadata["usage"] = {
                         "prompt_tokens": usage.get("prompt_tokens", 0),
@@ -148,18 +146,15 @@ class GeminiLLM(JudgeLLM):
                         "total_tokens": usage.get("total_tokens", 0),
                     }
 
-                # Extract finish reason
                 self._last_response_metadata["finish_reason"] = metadata.get(
                     "finish_reason"
                 )
 
-                # Store raw metadata
                 self._last_response_metadata["raw_metadata"] = dict(metadata)
 
             return response.text
-        except Exception as e:
-            self._set_response_metadata("gemini", error=str(e))
-            return f"Error generating response: {str(e)}"
+
+        return await self._run_with_retry(_invoke)
 
     async def generate_structured_response(
         self, message: Optional[str], response_model: Type[T]
@@ -180,8 +175,7 @@ class GeminiLLM(JudgeLLM):
 
         messages.append(HumanMessage(content=message))
 
-        try:
-            # Create a structured LLM using with_structured_output
+        async def _invoke() -> T:
             structured_llm = self.llm.with_structured_output(response_model)
 
             start_time = time.time()
@@ -194,16 +188,14 @@ class GeminiLLM(JudgeLLM):
                 structured_output=True,
             )
 
-            # Ensure response is the correct type
             if not isinstance(response, response_model):
                 raise ValueError(
                     f"Response is not an instance of {response_model.__name__}"
                 )
 
             return response  # type: ignore[return-value]
-        except Exception as e:
-            self._set_response_metadata("gemini", error=str(e))
-            raise RuntimeError(f"Error generating structured response: {str(e)}") from e
+
+        return await self._run_with_retry(_invoke)
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """Set or update the system prompt."""

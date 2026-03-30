@@ -1,6 +1,7 @@
 import copy
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Type, TypeVar
@@ -8,6 +9,19 @@ from typing import Any, Dict, List, Optional, Type, TypeVar
 from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
+R = TypeVar("R")
+
+# Retries after the first attempt (loop range(MAX_LLM_RETRIES + 1) => 4 total attempts).
+MAX_LLM_RETRIES = 3
+
+
+class LLMGenerationFailed(Exception):
+    """Raised when an LLM call fails after all retry attempts are exhausted."""
+
+
+def _no_retry_matches(err: BaseException, substrings: tuple[str, ...]) -> bool:
+    err_str = str(err)
+    return any(sub in err_str for sub in substrings)
 
 
 class Role(Enum):
@@ -82,6 +96,41 @@ class LLMInterface(ABC):
         cid = (self._last_response_metadata or {}).get("conversation_id")
         if cid is not None and cid != self.conversation_id and cid != "":
             self.conversation_id = cid
+
+    def _no_retry_substrings(self) -> tuple[str, ...]:
+        """Substrings in str(exception) that disable retry (e.g. quota/billing)."""
+        return ()
+
+    async def _run_with_retry(
+        self,
+        get_coro: Callable[[], Awaitable[R]],
+        *,
+        no_retry_substrings: tuple[str, ...] = (),
+    ) -> R:
+        """Run an async call with retries.
+
+        If the error matches no_retry_substrings, do not retry; raise
+        LLMGenerationFailed from that error so callers (e.g. conversation runner)
+        can skip the job without crashing the batch. On exhaustion after retries,
+        raise LLMGenerationFailed from the last error.
+        """
+        merged_no_retry = (*self._no_retry_substrings(), *no_retry_substrings)
+        last_exception: Optional[BaseException] = None
+        for attempt in range(MAX_LLM_RETRIES + 1):
+            try:
+                return await get_coro()
+            except LLMGenerationFailed:
+                raise
+            except Exception as e:
+                last_exception = e
+                if _no_retry_matches(e, merged_no_retry):
+                    raise LLMGenerationFailed(f"LLM error (non-retryable): {e}") from e
+                if attempt == MAX_LLM_RETRIES:
+                    break
+        assert last_exception is not None
+        raise LLMGenerationFailed(
+            f"LLM call failed after {MAX_LLM_RETRIES + 1} attempts: {last_exception}"
+        ) from last_exception
 
     def _set_response_metadata(self, provider: str, **extra: Any) -> None:
         """Set last_response_metadata with common fields; pass extra keys as kwargs.
@@ -232,6 +281,6 @@ class JudgeLLM(LLMInterface):
             Instance of the response_model with structured data
 
         Raises:
-            RuntimeError: If structured output generation fails
+            LLMGenerationFailed: If structured output generation fails after retries
         """
         pass

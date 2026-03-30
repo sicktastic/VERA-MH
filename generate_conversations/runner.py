@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from llm_clients import LLMFactory
-from llm_clients.llm_interface import Role
+from llm_clients.llm_interface import LLMGenerationFailed, Role
 from utils.logging_utils import (
     cleanup_logger,
     log_conversation_end,
@@ -138,56 +138,72 @@ class ConversationRunner:
         simulator = ConversationSimulator(persona, agent)
         # Run the conversation - let first speaker start naturally with None
 
-        result = None
+        result: Optional[Dict[str, Any]] = None
         try:
-            conversation = await simulator.generate_conversation(
-                max_turns=max_turns,
-                max_total_words=self.max_total_words,
-                persona_speaks_first=self.persona_speaks_first,
-            )
+            try:
+                conversation = await simulator.generate_conversation(
+                    max_turns=max_turns,
+                    max_total_words=self.max_total_words,
+                    persona_speaks_first=self.persona_speaks_first,
+                )
+            except LLMGenerationFailed as e:
+                end_time = time.time()
+                conversation_time = end_time - start_time
+                print(f"Skipped conversation ({persona_name}, run {run_number}): {e}")
+                result = {
+                    "index": conversation_index,
+                    "llm1_model": model_name,
+                    "llm1_prompt": persona_name,
+                    "run_number": run_number,
+                    "turns": 0,
+                    "filename": None,
+                    "log_file": f"{self.folder_name}/{filename_base}.log",
+                    "duration": conversation_time,
+                    "early_termination": False,
+                    "conversation": [],
+                    "skipped": True,
+                    "error": str(e),
+                }
+            else:
+                for i, turn in enumerate(conversation, 1):
+                    log_conversation_turn(
+                        logger=logger,
+                        turn_number=i,
+                        speaker=turn.get("speaker", "Unknown"),
+                        input_message=turn.get("input", ""),
+                        response=turn.get("response", ""),
+                        early_termination=turn.get("early_termination", False),
+                        logging=turn.get("logging", {}),
+                    )
 
-            # Log each conversation turn
-            for i, turn in enumerate(conversation, 1):
-                log_conversation_turn(
-                    logger=logger,
-                    turn_number=i,
-                    speaker=turn.get("speaker", "Unknown"),
-                    input_message=turn.get("input", ""),
-                    response=turn.get("response", ""),
-                    early_termination=turn.get("early_termination", False),
-                    logging=turn.get("logging", {}),
+                end_time = time.time()
+                conversation_time = end_time - start_time
+                early_termination = any(
+                    turn.get("early_termination", False) for turn in conversation
                 )
 
-            # Calculate timing and check early termination
-            end_time = time.time()
-            conversation_time = end_time - start_time
-            early_termination = any(
-                turn.get("early_termination", False) for turn in conversation
-            )
+                log_conversation_end(
+                    logger=logger,
+                    total_turns=len(conversation),
+                    early_termination=early_termination,
+                    total_time=conversation_time,
+                )
 
-            # Log conversation end
-            log_conversation_end(
-                logger=logger,
-                total_turns=len(conversation),
-                early_termination=early_termination,
-                total_time=conversation_time,
-            )
+                simulator.save_conversation(f"{filename_base}.txt", self.folder_name)
 
-            # Save conversation file
-            simulator.save_conversation(f"{filename_base}.txt", self.folder_name)
-
-            result = {
-                "index": conversation_index,
-                "llm1_model": model_name,
-                "llm1_prompt": persona_name,
-                "run_number": run_number,
-                "turns": len(conversation),
-                "filename": f"{self.folder_name}/{filename_base}.txt",
-                "log_file": f"{self.folder_name}/{filename_base}.log",
-                "duration": conversation_time,
-                "early_termination": early_termination,
-                "conversation": conversation,
-            }
+                result = {
+                    "index": conversation_index,
+                    "llm1_model": model_name,
+                    "llm1_prompt": persona_name,
+                    "run_number": run_number,
+                    "turns": len(conversation),
+                    "filename": f"{self.folder_name}/{filename_base}.txt",
+                    "log_file": f"{self.folder_name}/{filename_base}.log",
+                    "duration": conversation_time,
+                    "early_termination": early_termination,
+                    "conversation": conversation,
+                    "skipped": False,
+                }
         finally:
             cleanup_logger(logger)
 
@@ -254,6 +270,12 @@ class ConversationRunner:
         end_time = datetime.now()
         total_time = (end_time - start_time).total_seconds()
 
-        print(f"\nCompleted {len(results)} conversations in {total_time:.2f} seconds")
+        skipped_n = sum(1 for r in results if r.get("skipped"))
+        print(
+            f"\nCompleted {len(results)-skipped_n} / {len(results)} conversations in "
+            f"{total_time:.2f} seconds"
+        )
+        if skipped_n:
+            print(f"  ({skipped_n} skipped after LLM failures)")
 
         return results

@@ -1014,7 +1014,7 @@ class TestConversationRunnerErrorHandling:
         basic_persona_config: Dict[str, Any],
         basic_agent_config: Dict[str, Any],
     ) -> None:
-        """When the agent LLM errors during conversation, the exception propagates."""
+        """When the agent LLM fails, the run is skipped and no transcript is saved."""
         # Arrange
         conv_folder = tmp_path / "conversations"
         runner = ConversationRunner(
@@ -1060,16 +1060,18 @@ class TestConversationRunnerErrorHandling:
                 # run_single_conversation creates persona first, then agent
                 mock_factory.side_effect = [persona_mock, error_agent]
 
-                # Act & Assert - should raise the error
-                with pytest.raises(Exception) as exc_info:
-                    await runner.run_single_conversation(
-                        persona_config=persona_config,
-                        max_turns=2,
-                        conversation_index=1,
-                        run_number=1,
-                    )
+                # Act
+                result = await runner.run_single_conversation(
+                    persona_config=persona_config,
+                    max_turns=2,
+                    conversation_index=1,
+                    run_number=1,
+                )
 
-                assert "Simulated API error" in str(exc_info.value)
+                assert result.get("skipped") is True
+                assert "Simulated API error" in result.get("error", "")
+                txt_files = list(conv_folder.glob("*.txt"))
+                assert txt_files == []
 
     async def test_empty_persona_list(
         self,
