@@ -90,6 +90,7 @@ class ConversationRunner:
         persona_safe = persona_name.replace(" ", "_").replace(".", "")
         filename_base = f"{tag}_{persona_safe}_{model_short}_run{run_number}"
         os.makedirs(f"{self.folder_name}", exist_ok=True)
+        log_file_path = os.path.join("logging", self.run_id, f"{filename_base}.log")
 
         # Setup logging
         logger = setup_conversation_logger(filename_base, run_id=self.run_id)
@@ -157,7 +158,7 @@ class ConversationRunner:
                     "run_number": run_number,
                     "turns": 0,
                     "filename": None,
-                    "log_file": f"{self.folder_name}/{filename_base}.log",
+                    "log_file": log_file_path,
                     "duration": conversation_time,
                     "early_termination": False,
                     "conversation": [],
@@ -198,7 +199,7 @@ class ConversationRunner:
                     "run_number": run_number,
                     "turns": len(conversation),
                     "filename": f"{self.folder_name}/{filename_base}.txt",
-                    "log_file": f"{self.folder_name}/{filename_base}.log",
+                    "log_file": log_file_path,
                     "duration": conversation_time,
                     "early_termination": early_termination,
                     "conversation": conversation,
