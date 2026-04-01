@@ -5,8 +5,9 @@ import os
 import re
 import time
 import uuid
+from asyncio import Queue
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from llm_clients import LLMFactory
 from llm_clients.llm_interface import LLMGenerationFailed, Role
@@ -111,6 +112,85 @@ class ConversationRunner:
         """Return True when a transcript exists for this exact persona/run."""
         return (persona_safe, run_number) in existing_keys
 
+    def _create_conversation_jobs(
+        self, persona_names: Optional[List[str]] = None
+    ) -> List[Tuple[dict, int, int, int]]:
+        """Create job tuples for all persona/run combinations."""
+        personas = load_prompts_from_csv(persona_names, max_personas=self.max_personas)
+        jobs: List[Tuple[dict, int, int, int]] = []
+        conversation_index = 1
+        for persona in personas:
+            for run in range(1, self.runs_per_prompt + 1):
+                jobs.append(
+                    (
+                        {
+                            "model": self.persona_model_config["model"],
+                            "prompt": persona["prompt"],
+                            "name": persona["Name"],
+                            "run": run,
+                        },
+                        self.max_turns,
+                        conversation_index,
+                        run,
+                    )
+                )
+                conversation_index += 1
+        return jobs
+
+    async def _worker(
+        self,
+        worker_id: int,
+        queue: Queue,
+        results: List[Dict[str, Any]],
+        total_jobs: int,
+    ) -> None:
+        """Worker that processes conversation generation jobs from a queue."""
+        while True:
+            try:
+                job = queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+            try:
+                persona_config, max_turns, conversation_index, run_number = job
+                conversation_name = persona_config.get("name", "Unknown")
+                print(
+                    f"[Worker {worker_id}] ({len(results) + 1}/{total_jobs}) "
+                    f"{conversation_name} (run {run_number})"
+                )
+                result = await self.run_single_conversation(
+                    persona_config=persona_config,
+                    max_turns=max_turns,
+                    conversation_index=conversation_index,
+                    run_number=run_number,
+                )
+            except Exception as exc:
+                # Don't let one failed job cancel all workers.
+                # Keep result schema stable.
+                result = {
+                    "index": job[2] if len(job) > 2 else -1,
+                    "llm1_model": self.persona_model_config.get("model", "unknown"),
+                    "llm1_prompt": (
+                        job[0].get("name", "Unknown")
+                        if isinstance(job[0], dict)
+                        else "Unknown"
+                    ),
+                    "run_number": job[3] if len(job) > 3 else 0,
+                    "turns": 0,
+                    "filename": None,
+                    "log_file": None,
+                    "duration": 0.0,
+                    "early_termination": False,
+                    "conversation": [],
+                    "skipped": True,
+                    "error": str(exc),
+                }
+                print(f"[Worker {worker_id}] Failed job: {result['error']}")
+            finally:
+                queue.task_done()
+
+            results.append(result)
+
     async def run_single_conversation(
         self,
         persona_config: dict,
@@ -201,71 +281,76 @@ class ConversationRunner:
 
         result: Optional[Dict[str, Any]] = None
         try:
-            try:
-                conversation = await simulator.generate_conversation(
-                    max_turns=max_turns,
-                    max_total_words=self.max_total_words,
-                    persona_speaks_first=self.persona_speaks_first,
-                )
-            except LLMGenerationFailed as e:
-                end_time = time.time()
-                conversation_time = end_time - start_time
-                print(f"Skipped conversation ({persona_name}, run {run_number}): {e}")
-                result = {
-                    "index": conversation_index,
-                    "llm1_model": model_name,
-                    "llm1_prompt": persona_name,
-                    "run_number": run_number,
-                    "turns": 0,
-                    "filename": None,
-                    "log_file": log_file_path,
-                    "duration": conversation_time,
-                    "early_termination": False,
-                    "conversation": [],
-                    "skipped": True,
-                    "skip_reason": "error",
-                    "error": str(e),
-                }
-            else:
-                for i, turn in enumerate(conversation, 1):
-                    log_conversation_turn(
-                        logger=logger,
-                        turn_number=i,
-                        speaker=turn.get("speaker", "Unknown"),
-                        input_message=turn.get("input", ""),
-                        response=turn.get("response", ""),
-                        early_termination=turn.get("early_termination", False),
-                        logging=turn.get("logging", {}),
-                    )
-
-                end_time = time.time()
-                conversation_time = end_time - start_time
-                early_termination = any(
-                    turn.get("early_termination", False) for turn in conversation
-                )
-
-                log_conversation_end(
+            conversation = await simulator.generate_conversation(
+                max_turns=max_turns,
+                max_total_words=self.max_total_words,
+                persona_speaks_first=self.persona_speaks_first,
+            )
+        except LLMGenerationFailed as e:
+            end_time = time.time()
+            conversation_time = end_time - start_time
+            print(f"Skipped conversation ({persona_name}, run {run_number}): {e}")
+            logger.error(
+                "CONVERSATION FAILED | persona=%s run=%s error=%s",
+                persona_name,
+                run_number,
+                str(e),
+            )
+            result = {
+                "index": conversation_index,
+                "llm1_model": model_name,
+                "llm1_prompt": persona_name,
+                "run_number": run_number,
+                "turns": 0,
+                "filename": None,
+                "log_file": log_file_path,
+                "duration": conversation_time,
+                "early_termination": False,
+                "conversation": [],
+                "skipped": True,
+                "skip_reason": "error",
+                "error": str(e),
+            }
+        else:
+            for i, turn in enumerate(conversation, 1):
+                log_conversation_turn(
                     logger=logger,
-                    total_turns=len(conversation),
-                    early_termination=early_termination,
-                    total_time=conversation_time,
+                    turn_number=i,
+                    speaker=turn.get("speaker", "Unknown"),
+                    input_message=turn.get("input", ""),
+                    response=turn.get("response", ""),
+                    early_termination=turn.get("early_termination", False),
+                    logging=turn.get("logging", {}),
                 )
 
-                simulator.save_conversation(f"{filename_base}.txt", self.folder_name)
+            end_time = time.time()
+            conversation_time = end_time - start_time
+            early_termination = any(
+                turn.get("early_termination", False) for turn in conversation
+            )
 
-                result = {
-                    "index": conversation_index,
-                    "llm1_model": model_name,
-                    "llm1_prompt": persona_name,
-                    "run_number": run_number,
-                    "turns": len(conversation),
-                    "filename": f"{self.folder_name}/{filename_base}.txt",
-                    "log_file": log_file_path,
-                    "duration": conversation_time,
-                    "early_termination": early_termination,
-                    "conversation": conversation,
-                    "skipped": False,
-                }
+            log_conversation_end(
+                logger=logger,
+                total_turns=len(conversation),
+                early_termination=early_termination,
+                total_time=conversation_time,
+            )
+
+            simulator.save_conversation(f"{filename_base}.txt", self.folder_name)
+
+            result = {
+                "index": conversation_index,
+                "llm1_model": model_name,
+                "llm1_prompt": persona_name,
+                "run_number": run_number,
+                "turns": len(conversation),
+                "filename": f"{self.folder_name}/{filename_base}.txt",
+                "log_file": log_file_path,
+                "duration": conversation_time,
+                "early_termination": early_termination,
+                "conversation": conversation,
+                "skipped": False,
+            }
         finally:
             cleanup_logger(logger)
 
@@ -283,13 +368,12 @@ class ConversationRunner:
     async def run_conversations(
         self, persona_names: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
-        """Run multiple conversations concurrently."""
-        # Load prompts from CSV based on persona names
+        """Run multiple conversations concurrently using queue workers."""
         personas = load_prompts_from_csv(persona_names, max_personas=self.max_personas)
         existing_keys = self._index_existing_conversations() if self.resume else set()
 
-        # Create tasks for all conversations (each prompt run multiple times)
-        tasks = []
+        # Create jobs for all conversations (each prompt run multiple times)
+        jobs: List[Tuple[dict, int, int, int]] = []
         skipped_results: List[Dict[str, Any]] = []
         conversation_index = 1
 
@@ -316,8 +400,8 @@ class ConversationRunner:
                     )
                     conversation_index += 1
                     continue
-                tasks.append(
-                    self.run_single_conversation(
+                jobs.append(
+                    (
                         {
                             "model": self.persona_model_config["model"],
                             "prompt": persona["prompt"],
@@ -331,26 +415,33 @@ class ConversationRunner:
                 )
                 conversation_index += 1
 
-        # Run all conversations with concurrency limit
+        total_jobs = len(jobs)
         start_time = datetime.now()
+        queue: Queue = Queue()
+        for job in jobs:
+            await queue.put(job)
 
-        if self.max_concurrent and len(tasks) > self.max_concurrent:
-            # Use semaphore to limit concurrent conversations
-            semaphore = asyncio.Semaphore(self.max_concurrent)
+        if self.max_concurrent is not None and self.max_concurrent < 0:
+            raise ValueError(
+                "max_concurrent must be None, 0 (no limit), or a positive integer"
+            )
 
-            async def run_with_limit(task):
-                async with semaphore:
-                    return await task
-
+        if self.max_concurrent in (None, 0):
+            num_workers = total_jobs
+            print(f"Running {total_jobs} conversations concurrently (no limit)")
+        else:
+            num_workers = self.max_concurrent
             print(
-                f"Running {len(tasks)} conversations with max concurrency: "
+                f"Running {total_jobs} conversations with max concurrency: "
                 f"{self.max_concurrent}"
             )
-            results = await asyncio.gather(*[run_with_limit(task) for task in tasks])
-        else:
-            # Run all conversations concurrently (no limit)
-            print(f"Running {len(tasks)} conversations concurrently (no limit)")
-            results = await asyncio.gather(*tasks)
+
+        results: List[Dict[str, Any]] = []
+        workers = [
+            asyncio.create_task(self._worker(i, queue, results, total_jobs))
+            for i in range(num_workers)
+        ]
+        await asyncio.gather(*workers)
 
         results = skipped_results + results
 
@@ -367,7 +458,8 @@ class ConversationRunner:
             1 for r in results if r.get("skipped") and r.get("skip_reason") == "error"
         )
         print(
-            f"\nCompleted {len(results)-skipped_n} / {len(results)} conversations in "
+            f"\nCompleted {len(results)-skipped_n} / {len(results)} "
+            f"conversations in "
             f"{total_time:.2f} seconds"
         )
         if skipped_existing_n:

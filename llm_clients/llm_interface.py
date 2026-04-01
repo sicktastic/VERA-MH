@@ -1,4 +1,6 @@
+import asyncio
 import copy
+import random
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
@@ -10,12 +12,17 @@ from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R")
+# Retry callback receives
+# (error, current_attempt, max_retries, is_no_retry_error, is_final_attempt)
+# and can return optional metadata to include in retry logging/handling.
 RetryOnErrorCallback = Callable[
     [BaseException, int, int, bool, bool], Optional[Dict[str, Any]]
 ]
 
 # Retries after the first attempt (loop range(MAX_LLM_RETRIES + 1) => 4 total attempts).
 MAX_LLM_RETRIES = 3
+DEFAULT_RETRY_BASE_DELAY_SECONDS = 0.75
+DEFAULT_RETRY_MAX_DELAY_SECONDS = 8.0
 
 
 class LLMGenerationFailed(Exception):
@@ -25,6 +32,13 @@ class LLMGenerationFailed(Exception):
 def _no_retry_matches(err: BaseException, substrings: tuple[str, ...]) -> bool:
     err_str = str(err)
     return any(sub in err_str for sub in substrings)
+
+
+def _compute_retry_delay_seconds(attempt_number: int) -> float:
+    """Compute full-jitter exponential backoff delay for next retry."""
+    raw_delay = DEFAULT_RETRY_BASE_DELAY_SECONDS * (2 ** (attempt_number - 1))
+    capped_delay = min(raw_delay, DEFAULT_RETRY_MAX_DELAY_SECONDS)
+    return random.uniform(0.0, capped_delay)
 
 
 class Role(Enum):
@@ -165,6 +179,11 @@ class LLMInterface(ABC):
                     raise LLMGenerationFailed(f"LLM error (non-retryable): {e}") from e
                 if attempt == MAX_LLM_RETRIES:
                     break
+                retry_delay_seconds = _compute_retry_delay_seconds(attempt_number)
+                self._last_response_metadata["retry_delay_seconds"] = round(
+                    retry_delay_seconds, 3
+                )
+                await asyncio.sleep(retry_delay_seconds)
         assert last_exception is not None
         raise LLMGenerationFailed(
             f"LLM call failed after {max_attempts} attempts: {last_exception}"
