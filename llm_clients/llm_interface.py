@@ -10,6 +10,9 @@ from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R")
+# Retry callback receives
+# (error, current_attempt, max_retries, is_no_retry_error, is_final_attempt)
+# and can return optional metadata to include in retry logging/handling.
 RetryOnErrorCallback = Callable[
     [BaseException, int, int, bool, bool], Optional[Dict[str, Any]]
 ]
