@@ -7,7 +7,7 @@ import time
 import uuid
 from asyncio import Queue
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import AbstractSet, Any, Dict, List, Optional, Tuple
 
 from llm_clients import LLMFactory
 from llm_clients.llm_interface import LLMGenerationFailed, Role
@@ -55,52 +55,72 @@ class ConversationRunner:
         self.persona_speaks_first = persona_speaks_first
         self.resume = resume
 
+    # Suffix after first `_` in `{tag}_{persona_safe}_{model}_run{N}.txt`
+    _RUN_SUFFIX_RE = re.compile(r"_run(?P<run>\d+)\.txt$")
+
     @staticmethod
     def _to_persona_safe(persona_name: str) -> str:
         """Normalize persona names to the on-disk filename format."""
         return persona_name.replace(" ", "_").replace(".", "")
 
     @staticmethod
-    def _extract_run_number(filename: str) -> Optional[int]:
+    def _resolve_persona_safe_from_stem(
+        stem: str, persona_safe_names: AbstractSet[str]
+    ) -> Optional[str]:
         """
-        Extract run_number from generated transcript filename.
+        Pick the longest persona_safe in persona_safe_names that matches this stem.
 
-        Expected shape:
-            {tag}_{persona_safe}_{model_short}_run{N}.txt
+        Transcript stem (after tag_) is {persona_safe}_{model_short}; model_short may
+        contain underscores, so we match known persona_safe names instead of splitting
+        on underscores.
         """
-        match = re.match(
-            r"^[^_]+_.+_run(?P<run>\d+)\.txt$",
-            filename,
-        )
+        candidates = [
+            p for p in persona_safe_names if stem == p or stem.startswith(p + "_")
+        ]
+        if not candidates:
+            return None
+        return max(candidates, key=len)
+
+    def _parse_transcript_suffix_for_resume(
+        self, suffix: str, persona_safe_names: AbstractSet[str]
+    ) -> Optional[tuple[str, int]]:
+        """Parse `{persona_safe}_{model}_run{N}.txt` using known persona_safe names."""
+        match = self._RUN_SUFFIX_RE.search(suffix)
         if not match:
             return None
-        return int(match.group("run"))
+        run = int(match.group("run"))
+        stem = suffix[: match.start()]
+        persona_safe = self._resolve_persona_safe_from_stem(stem, persona_safe_names)
+        if persona_safe is None:
+            return None
+        return (persona_safe, run)
 
-    def _index_existing_conversations(self) -> set[tuple[str, int]]:
+    def _index_existing_conversations(
+        self, persona_safe_names: AbstractSet[str]
+    ) -> set[tuple[str, int]]:
         """
         Index existing transcript files as (persona_safe, run_number).
 
-        Model segment is intentionally ignored to avoid coupling skip logic to
-        filename model-short formatting.
+        Parses `_runN.txt` first, then resolves persona_safe via longest-prefix match
+        against persona_safe_names so model segments with underscores do not corrupt
+        the persona key.
         """
         existing: set[tuple[str, int]] = set()
         if not os.path.isdir(self.folder_name):
             return existing
 
-        # Suffix after random hash:
-        # {persona_safe}_{model_segment}_run{N}.txt
-        # We capture persona greedily up to the final `_runN.txt` marker.
-        suffix_pattern = re.compile(r"^(?P<persona>.+)_.+_run(?P<run>\d+)\.txt$")
         for filename in os.listdir(self.folder_name):
             if not filename.endswith(".txt"):
                 continue
             parts = filename.split("_", 1)
             if len(parts) != 2:
                 continue
-            match = suffix_pattern.match(parts[1])
-            if not match:
+            parsed = self._parse_transcript_suffix_for_resume(
+                parts[1], persona_safe_names
+            )
+            if parsed is None:
                 continue
-            existing.add((match.group("persona"), int(match.group("run"))))
+            existing.add(parsed)
         return existing
 
     @staticmethod
@@ -370,7 +390,12 @@ class ConversationRunner:
     ) -> List[Dict[str, Any]]:
         """Run multiple conversations concurrently using queue workers."""
         personas = load_prompts_from_csv(persona_names, max_personas=self.max_personas)
-        existing_keys = self._index_existing_conversations() if self.resume else set()
+        persona_safe_names = {self._to_persona_safe(p["Name"]) for p in personas}
+        existing_keys = (
+            self._index_existing_conversations(persona_safe_names)
+            if self.resume
+            else set()
+        )
 
         # Create jobs for all conversations (each prompt run multiple times)
         jobs: List[Tuple[dict, int, int, int]] = []
@@ -458,7 +483,7 @@ class ConversationRunner:
             1 for r in results if r.get("skipped") and r.get("skip_reason") == "error"
         )
         print(
-            f"\nCompleted {len(results)-skipped_n} / {len(results)} "
+            f"\nCompleted {len(results) - skipped_n} / {len(results)} "
             f"conversations in "
             f"{total_time:.2f} seconds"
         )

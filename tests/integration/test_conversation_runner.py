@@ -922,6 +922,43 @@ class TestConversationRunnerMultiple:
         assert len(results) == 1
         assert results[0].get("skipped") is True
 
+    async def test_resume_mode_skips_when_model_short_has_underscores(
+        self,
+        tmp_path: Path,
+        basic_persona_config: Dict[str, Any],
+        basic_agent_config: Dict[str, Any],
+        mock_llm_factory,
+    ) -> None:
+        """Resume resolves persona when model_short contains underscores."""
+        conv_folder = tmp_path / "conversations"
+        conv_folder.mkdir(parents=True, exist_ok=True)
+        (conv_folder / "abc123_Persona1_gpt_4_turbo_run1.txt").write_text(
+            "user: hi\n\nchatbot: hello\n", encoding="utf-8"
+        )
+
+        runner = create_test_runner(
+            basic_persona_config,
+            basic_agent_config,
+            "test_run",
+            max_turns=2,
+            runs_per_prompt=2,
+            folder_name=str(conv_folder),
+            resume=True,
+        )
+        mock_personas = [{"Name": "Persona1", "prompt": "Prompt 1"}]
+
+        with patch("generate_conversations.runner.load_prompts_from_csv") as mock_load:
+            mock_load.return_value = mock_personas
+            with patch(
+                "generate_conversations.runner.setup_conversation_logger"
+            ) as mock_logger:
+                mock_logger.return_value = MagicMock()
+                results = await runner.run_conversations(persona_names=None)
+
+        assert len(results) == 2
+        assert sum(1 for r in results if r.get("skipped")) == 1
+        assert sum(1 for r in results if not r.get("skipped")) == 1
+
     async def test_agent_config_not_mutated_across_concurrent_conversations(
         self,
         tmp_path: Path,

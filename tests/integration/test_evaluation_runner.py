@@ -236,7 +236,7 @@ class TestBatchEvaluateWithIndividualJudges:
             question_prompt_file="question_prompt.txt",
         )
 
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models={"mock-judge": 1},
             output_folder=output_folder,
@@ -289,7 +289,7 @@ class TestBatchEvaluateWithIndividualJudges:
             question_prompt_file="question_prompt.txt",
         )
 
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models={"mock-judge": 1},
             output_folder=output_folder,
@@ -333,7 +333,7 @@ class TestBatchEvaluateWithIndividualJudges:
             question_prompt_file="question_prompt.txt",
         )
 
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models={"mock-judge": 1},
             output_folder=output_folder,
@@ -391,7 +391,7 @@ class TestBatchEvaluateWithIndividualJudges:
             ):
                 output_folder = str(tmp_path / "error_evaluations")
 
-                results, _ = await batch_evaluate_with_individual_judges(
+                results = await batch_evaluate_with_individual_judges(
                     conversations=conversations,
                     judge_models={"mock-judge": 1},
                     output_folder=output_folder,
@@ -1226,7 +1226,7 @@ class TestMultipleJudgeModels:
         # Use 2 different judge models (1 instance each)
         judge_models = {"mock-judge-1": 1, "mock-judge-2": 1}
 
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models=judge_models,
             output_folder=output_folder,
@@ -1278,7 +1278,7 @@ class TestMultipleJudgeModels:
         # Use 3 instances of the same judge model
         judge_models = {"mock-judge": 3}
 
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models=judge_models,
             output_folder=output_folder,
@@ -1328,7 +1328,7 @@ class TestMultipleJudgeModels:
         # Model A: 2 instances, Model B: 3 instances
         judge_models = {"mock-judge-a": 2, "mock-judge-b": 3}
 
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models=judge_models,
             output_folder=output_folder,
@@ -1447,7 +1447,7 @@ class TestConcurrencyControl:
             question_prompt_file="question_prompt.txt",
         )
 
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models={"mock-judge": 1},
             output_folder=output_folder,
@@ -1486,7 +1486,7 @@ class TestConcurrencyControl:
         )
 
         # 2 models, max_concurrent=2 per judge
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models={"mock-judge-1": 1, "mock-judge-2": 1},
             output_folder=output_folder,
@@ -1524,7 +1524,7 @@ class TestConcurrencyControl:
             question_prompt_file="question_prompt.txt",
         )
 
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models={"mock-judge": 2},
             output_folder=output_folder,
@@ -1608,7 +1608,7 @@ class TestWorkerQueueSystem:
             question_prompt_file="question_prompt.txt",
         )
 
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models={"mock-judge-1": 2, "mock-judge-2": 1},
             output_folder=output_folder,
@@ -1650,7 +1650,7 @@ class TestWorkerQueueSystem:
             question_prompt_file="question_prompt.txt",
         )
 
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models={"mock-judge": 1},
             output_folder=output_folder,
@@ -1690,7 +1690,7 @@ class TestWorkerQueueSystem:
             question_prompt_file="question_prompt.txt",
         )
 
-        results, _ = await batch_evaluate_with_individual_judges(
+        results = await batch_evaluate_with_individual_judges(
             conversations=conversations,
             judge_models={"mock-judge-1": 1, "mock-judge-2": 1},
             output_folder=output_folder,
@@ -1748,7 +1748,7 @@ class TestErrorHandlingAndCoverage:
             with patch("judge.llm_judge.LLMFactory.create_llm"):
                 output_folder = str(tmp_path / "error_test")
 
-                results, _ = await batch_evaluate_with_individual_judges(
+                results = await batch_evaluate_with_individual_judges(
                     conversations=conversations,
                     judge_models={"mock-judge": 1},
                     output_folder=output_folder,
@@ -1818,7 +1818,7 @@ class TestErrorHandlingAndCoverage:
         """
 
         async def mock_batch_evaluate_empty(*args, **kwargs):
-            return [], 0
+            return []
 
         with patch(
             "judge.runner.batch_evaluate_with_individual_judges",
@@ -2059,13 +2059,13 @@ class TestRunnerHelperFunctions:
         assert len(jobs) == 0
 
     def test_filter_jobs_skip_existing_tsv(self, tmp_path):
-        """Resume filter drops jobs whose output TSV already exists."""
+        """Resume skip omits jobs when matching evaluation TSV already exists."""
         from judge.rubric_config import ConversationData, RubricConfig
         from judge.runner import (
             _create_evaluation_jobs,
-            _filter_jobs_skip_existing_tsv,
+            _index_existing_evaluation_tsv_basenames,
+            _judge_result_tsv_basename,
         )
-        from judge.utils import judge_evaluation_tsv_filename
 
         conversations = [
             ConversationData(
@@ -2088,11 +2088,19 @@ class TestRunnerHelperFunctions:
         )
         assert len(jobs) == 2
 
-        existing = judge_evaluation_tsv_filename("a.txt", "gpt-4o", 1)
-        (out / existing).write_text("Dimension\tScore\tReasoning\n", encoding="utf-8")
+        existing_name = _judge_result_tsv_basename(conversations[0], "gpt-4o", 1)
+        (out / existing_name).write_text(
+            "Dimension\tScore\tReasoning\n", encoding="utf-8"
+        )
 
-        kept, skipped = _filter_jobs_skip_existing_tsv(jobs, str(out))
-        assert skipped == 1
+        existing_basenames = _index_existing_evaluation_tsv_basenames(str(out))
+        kept = _create_evaluation_jobs(
+            conversations,
+            judge_models,
+            str(out),
+            rubric_config,
+            existing_tsv_basenames=existing_basenames,
+        )
         assert len(kept) == 1
         assert kept[0][2] == 2
         assert kept[0][1] == "gpt-4o"
