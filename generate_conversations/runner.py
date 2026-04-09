@@ -162,8 +162,7 @@ class ConversationRunner:
 
         # Generate filename base using persona name, model, and run number
         tag = uuid.uuid4().hex[:6]
-        persona_safe = persona_name.replace(" ", "_").replace(".", "")
-        filename_base = f"{tag}_{persona_safe}_{model_name}_run{run_number}"
+        filename_base = f"{tag}_{persona_name}_{model_name}_run{run_number}"
         os.makedirs(f"{self.folder_name}", exist_ok=True)
         log_file_path = os.path.join("logging", self.run_id, f"{filename_base}.log")
 
