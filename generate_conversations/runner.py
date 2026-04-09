@@ -64,7 +64,6 @@ class ConversationRunner:
                 jobs.append(
                     (
                         {
-                            "model": self.persona_model_config["model"],
                             "prompt": persona["prompt"],
                             "name": persona["Name"],
                             "run": run,
@@ -145,7 +144,8 @@ class ConversationRunner:
         writes transcript to self.folder_name, then cleans up logger and LLMs.
 
         Args:
-            persona_config (dict): Must have "model", "prompt", "name".
+            persona_config (dict): Must have "prompt" and "name". Persona LLM
+                identity comes from ``self.persona_model_config`` (including ``model``).
             max_turns (int): Max conversation turns for a conversation.
             conversation_index (int): Index in the batch of conversations.
             run_number (int): Run index for this prompt (e.g. 1 of runs_per_prompt).
@@ -155,20 +155,14 @@ class ConversationRunner:
             Dict[str, Any]: index, llm1_model, llm1_prompt, run_number, turns,
             filename, log_file, duration, early_termination, conversation.
         """
-        model_name = persona_config["model"]
+        model_name = self.persona_model_config["model"]
         system_prompt = persona_config["prompt"]  # This is now the full persona prompt
         persona_name = persona_config["name"]
 
         # Generate filename base using persona name, model, and run number
         tag = uuid.uuid4().hex[:6]
-        # TODO: should this be inside the LLM class?
-        model_short = (
-            model_name.replace("claude-3-", "c3-")
-            .replace("gpt-", "g")
-            .replace("claude-sonnet-4-", "cs4-")
-        )
         persona_safe = persona_name.replace(" ", "_").replace(".", "")
-        filename_base = f"{tag}_{persona_safe}_{model_short}_run{run_number}"
+        filename_base = f"{tag}_{persona_safe}_{model_name}_run{run_number}"
         os.makedirs(f"{self.folder_name}", exist_ok=True)
         log_file_path = os.path.join("logging", self.run_id, f"{filename_base}.log")
 
@@ -179,7 +173,7 @@ class ConversationRunner:
         # Create persona instance
         persona = LLMFactory.create_llm(
             model_name=model_name,
-            name=f"{model_short} {persona_name}",
+            name=f"{model_name} {persona_name}",
             system_prompt=system_prompt,
             role=Role.PERSONA,
             **self.persona_model_config,
