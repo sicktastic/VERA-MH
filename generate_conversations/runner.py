@@ -71,12 +71,15 @@ class ConversationRunner:
         """
         Pick the longest persona_safe in persona_safe_names that matches this stem.
 
-        Transcript stem (after tag_) is {persona_safe}_{model_short}; model_short may
+        Transcript stem (after tag_) is {persona_safe}_{model_name}; model_name may
         contain underscores, so we match known persona_safe names instead of splitting
         on underscores.
+
+        Example: stem ``Anna_gemini-2.5-flash`` with ``{"Ann", "Anna"}`` in the set
+        matches both prefixes; returns ``Anna`` (longest).
         """
         candidates = [
-            p for p in persona_safe_names if stem == p or stem.startswith(p + "_")
+            p for p in persona_safe_names if stem == p or stem.startswith(f"{p}_")
         ]
         if not candidates:
             return None
