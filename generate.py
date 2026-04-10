@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import os
+import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -336,3 +337,5 @@ if __name__ == "__main__":
             persona_speaks_first=not args.provider_speaks_first,
         )
     )
+    if results and all(r.get("skipped") for r in results):
+        sys.exit(1)
