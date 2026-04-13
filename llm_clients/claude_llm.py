@@ -13,6 +13,11 @@ from .llm_interface import JudgeLLM, Role
 
 T = TypeVar("T", bound=BaseModel)
 
+# Anthropic-only: prompt caching is opt-in per request (not `cache_control` elsewhere).
+# Default ephemeral TTL is 5m (no `ttl` key). Override with ctor kwarg
+# anthropic_cache_control, e.g. {"type": "ephemeral", "ttl": "1h"}, or None to disable.
+_DEFAULT_ANTHROPIC_CACHE_CONTROL: Dict[str, Any] = {"type": "ephemeral"}
+
 
 class ClaudeLLM(JudgeLLM):
     """Claude implementation using LangChain."""
@@ -37,6 +42,9 @@ class ClaudeLLM(JudgeLLM):
     ):
         first_message = kwargs.pop("first_message", None)
         start_prompt = kwargs.pop("start_prompt", None)
+        self._anthropic_cache_control: Optional[Dict[str, Any]] = kwargs.pop(
+            "anthropic_cache_control", dict(_DEFAULT_ANTHROPIC_CACHE_CONTROL)
+        )
         super().__init__(
             name,
             role,
@@ -120,7 +128,10 @@ class ClaudeLLM(JudgeLLM):
 
         async def _invoke() -> str:
             start_time = time.time()
-            response = await self.llm.ainvoke(messages)
+            invoke_kw: Dict[str, Any] = {}
+            if self._anthropic_cache_control:
+                invoke_kw["cache_control"] = self._anthropic_cache_control
+            response = await self.llm.ainvoke(messages, **invoke_kw)
             end_time = time.time()
 
             model = (
@@ -147,6 +158,12 @@ class ClaudeLLM(JudgeLLM):
                         "total_tokens": usage.get("input_tokens", 0)
                         + usage.get("output_tokens", 0),
                     }
+                    for ck in (
+                        "cache_creation_input_tokens",
+                        "cache_read_input_tokens",
+                    ):
+                        if usage.get(ck) is not None:
+                            self._last_response_metadata["usage"][ck] = usage[ck]
                 self._last_response_metadata["stop_reason"] = metadata.get(
                     "stop_reason"
                 )
@@ -179,7 +196,10 @@ class ClaudeLLM(JudgeLLM):
             structured_llm = self.llm.with_structured_output(response_model)
 
             start_time = time.time()
-            response = await structured_llm.ainvoke(messages)
+            invoke_kw: Dict[str, Any] = {}
+            if self._anthropic_cache_control:
+                invoke_kw["cache_control"] = self._anthropic_cache_control
+            response = await structured_llm.ainvoke(messages, **invoke_kw)
             end_time = time.time()
 
             self._set_response_metadata(

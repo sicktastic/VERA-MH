@@ -15,7 +15,14 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class OpenAILLM(JudgeLLM):
-    """OpenAI implementation using LangChain."""
+    """OpenAI implementation using LangChain.
+
+    Prompt caching is automatic for eligible models/prefixes; we pass
+    ``prompt_cache_key`` (per conversation) on each call so routing can improve
+    cache hits.
+    Since this is automatic, we do not require something like
+    Anthropic's ``cache_control``.
+    """
 
     def _no_retry_substrings(self) -> tuple[str, ...]:
         # https://platform.openai.com/docs/guides/error-codes
@@ -118,7 +125,10 @@ class OpenAILLM(JudgeLLM):
 
         async def _invoke() -> str:
             start_time = time.time()
-            response = await self.llm.ainvoke(messages)
+            response = await self.llm.ainvoke(
+                messages,
+                prompt_cache_key=self.conversation_id,
+            )
             end_time = time.time()
 
             self._set_response_metadata(
@@ -199,7 +209,10 @@ class OpenAILLM(JudgeLLM):
             structured_llm = self.llm.with_structured_output(response_model)
 
             start_time = time.time()
-            response = await structured_llm.ainvoke(messages)
+            response = await structured_llm.ainvoke(
+                messages,
+                prompt_cache_key=self.conversation_id,
+            )
             end_time = time.time()
 
             self._set_response_metadata(

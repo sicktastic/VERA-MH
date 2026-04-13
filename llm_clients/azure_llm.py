@@ -19,7 +19,11 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class AzureLLM(JudgeLLM):
-    """Azure OpenAI implementation using LangChain."""
+    """Azure OpenAI implementation using LangChain.
+
+    Caching follows the underlying Azure/OpenAI-compatible API. This client does not set
+    Anthropic ``cache_control`` or OpenAI ``prompt_cache_key`` (not on this wrapper).
+    """
 
     DEFAULT_API_VERSION = "2024-05-01-preview"
 
