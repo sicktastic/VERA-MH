@@ -224,10 +224,11 @@ def build_langchain_messages(
 
     if role == Role.PERSONA and messages and conversation_history:
         last_turn: Optional[Dict[str, Any]] = None
-        for turn in conversation_history:
+        for turn in reversed(conversation_history):
             if turn.get("turn") is None or turn.get("response") is None:
                 continue
             last_turn = turn
+            break
         if last_turn and last_turn.get("turn") != 0:
             speaker = last_turn.get("speaker")
             if speaker is not None:
