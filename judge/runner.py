@@ -416,7 +416,6 @@ async def batch_evaluate_with_individual_judges(
         jobs, max_concurrent, per_judge, verbose_workers
     )
 
-    print(f"Completed {len(results)}/{total_evaluations} evaluations successfully")
     return results
 
 
@@ -487,7 +486,9 @@ async def judge_conversations(
     if verbose:
         print(f"🔍 Judging {total_found} conversations")
 
-    # Run batch evaluation with multiple judges
+    total_evaluations = len(conversations) * sum(judge_models.values())
+
+    batch_start = datetime.now()
     results = await batch_evaluate_with_individual_judges(
         conversations,
         judge_models,
@@ -498,6 +499,9 @@ async def judge_conversations(
         judge_model_extra_params,
         verbose_workers,
     )
+
+    ok_n = len(results)
+    skipped_n = total_evaluations - ok_n
 
     if save_aggregated_results and results:
         # Column order: filename, run_id, judge_model, judge_instance,
@@ -518,7 +522,14 @@ async def judge_conversations(
             f"{output_folder}/{filename}", index=False
         )
     if verbose:
-        print(f"✅ Completed {len(results)} evaluations → {output_folder}/")
+        elapsed_s = (datetime.now() - batch_start).total_seconds()
+        print(
+            f"\n✅ Completed {ok_n} / {total_evaluations} evaluations "
+            f"→ {output_folder}/"
+        )
+        print(f"  Wall time: {elapsed_s:.2f} seconds")
+        if skipped_n:
+            print(f"  ({skipped_n} skipped due to errors)")
 
     return results, output_folder
 

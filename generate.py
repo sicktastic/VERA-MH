@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import os
+import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -109,7 +110,12 @@ async def main(
     results = await runner.run_conversations(persona_names=persona_names)
 
     if verbose:
-        print(f"✅ Generated {len(results)} conversations → {folder_name}/")
+        skipped_n = sum(1 for r in results if r.get("skipped"))
+        ok_n = len(results) - skipped_n
+        msg = f"✅ Generated {ok_n} conversations → {folder_name}/"
+        if skipped_n:
+            msg += f" ({skipped_n} skipped)"
+        print(msg)
 
     return results, folder_name
 
@@ -331,3 +337,5 @@ if __name__ == "__main__":
             persona_speaks_first=not args.provider_speaks_first,
         )
     )
+    if results and all(r.get("skipped") for r in results):
+        sys.exit(1)

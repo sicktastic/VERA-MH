@@ -208,7 +208,6 @@ class TestConversationRunnerInit:
             folder_name=str(tmp_path / "conversations"),
         )
         persona_config = {
-            "model": "mock-persona-model",
             "prompt": "Test persona prompt",
             "name": "TestPersona",
             "run": 1,
@@ -258,7 +257,6 @@ class TestConversationRunnerInit:
             folder_name=str(tmp_path / "conversations"),
         )
         persona_config = {
-            "model": "mock-persona-model",
             "prompt": "Test persona prompt",
             "name": "TestPersona",
             "run": 1,
@@ -306,7 +304,6 @@ class TestConversationRunnerSingle:
         )
 
         persona_config = {
-            "model": "mock-persona-model",
             "prompt": "Test persona prompt",
             "name": "TestPersona",
             "run": 1,
@@ -365,7 +362,6 @@ class TestConversationRunnerSingle:
         )
 
         persona_config = {
-            "model": "mock-persona-model",
             "prompt": "Test persona prompt",
             "name": "TestPersona",
             "run": 1,
@@ -410,7 +406,6 @@ class TestConversationRunnerSingle:
         )
 
         persona_config = {
-            "model": "mock-persona-model",
             "prompt": "Test persona prompt",
             "name": "TestPersona",
             "run": 1,
@@ -461,17 +456,20 @@ class TestConversationRunnerSingle:
         """Test that filename follows correct naming convention."""
         # Arrange
         conv_folder = tmp_path / "conversations"
+        persona_model_config = {
+            **basic_persona_config,
+            "model": "claude-3-opus-20240229",
+        }
         runner = ConversationRunner(
-            persona_model_config=basic_persona_config,
+            persona_model_config=persona_model_config,
             agent_model_config=basic_agent_config,
             run_id="test_run",
             folder_name=str(conv_folder),
         )
 
         persona_config = {
-            "model": "claude-3-opus-20240229",
             "prompt": "Test prompt",
-            "name": "Test Persona",
+            "name": "Persona",
             "run": 2,
         }
 
@@ -492,8 +490,8 @@ class TestConversationRunnerSingle:
         # Assert - verify filename format
         filename = Path(result["filename"]).name
         # Should contain: tag_personaname_modelshort_runN
-        assert "Test_Persona" in filename
-        assert "c3-opus-20240229" in filename
+        assert "Persona" in filename
+        assert "claude-3-opus-20240229" in filename
         assert "run2" in filename
         assert filename.endswith(".txt")
 
@@ -514,7 +512,6 @@ class TestConversationRunnerSingle:
         )
 
         persona_config = {
-            "model": "mock-persona",
             "prompt": "Test prompt",
             "name": "TestPersona",
             "run": 1,
@@ -581,7 +578,6 @@ class TestConversationRunnerSingle:
         )
 
         persona_config = {
-            "model": "mock-persona",
             "prompt": "Test prompt",
             "name": "TestPersona",
             "run": 1,
@@ -903,7 +899,6 @@ class TestConversationRunnerFileOperations:
         )
 
         persona_config = {
-            "model": "mock-persona",
             "prompt": "Test prompt",
             "name": "TestPersona",
             "run": 1,
@@ -1014,7 +1009,7 @@ class TestConversationRunnerErrorHandling:
         basic_persona_config: Dict[str, Any],
         basic_agent_config: Dict[str, Any],
     ) -> None:
-        """When the agent LLM errors during conversation, the exception propagates."""
+        """When the agent LLM fails, the run is skipped and no transcript is saved."""
         # Arrange
         conv_folder = tmp_path / "conversations"
         runner = ConversationRunner(
@@ -1025,7 +1020,6 @@ class TestConversationRunnerErrorHandling:
         )
 
         persona_config = {
-            "model": "mock-persona",
             "prompt": "Test prompt",
             "name": "TestPersona",
             "run": 1,
@@ -1060,16 +1054,18 @@ class TestConversationRunnerErrorHandling:
                 # run_single_conversation creates persona first, then agent
                 mock_factory.side_effect = [persona_mock, error_agent]
 
-                # Act & Assert - should raise the error
-                with pytest.raises(Exception) as exc_info:
-                    await runner.run_single_conversation(
-                        persona_config=persona_config,
-                        max_turns=2,
-                        conversation_index=1,
-                        run_number=1,
-                    )
+                # Act
+                result = await runner.run_single_conversation(
+                    persona_config=persona_config,
+                    max_turns=2,
+                    conversation_index=1,
+                    run_number=1,
+                )
 
-                assert "Simulated API error" in str(exc_info.value)
+                assert result.get("skipped") is True
+                assert "Simulated API error" in result.get("error", "")
+                txt_files = list(conv_folder.glob("*.txt"))
+                assert txt_files == []
 
     async def test_empty_persona_list(
         self,
@@ -1121,7 +1117,6 @@ class TestConversationRunnerErrorHandling:
         )
 
         persona_config = {
-            "model": "mock-persona",
             "prompt": "Test prompt",
             "name": "TestPersona",
             "run": 1,
@@ -1169,7 +1164,6 @@ class TestConversationRunnerPerformance:
         )
 
         persona_config = {
-            "model": "mock-persona",
             "prompt": "Test prompt",
             "name": "TestPersona",
             "run": 1,
