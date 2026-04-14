@@ -130,7 +130,7 @@ class ClaudeLLM(JudgeLLM):
         async def _invoke() -> str:
             start_time = time.time()
             invoke_kw: Dict[str, Any] = {}
-            if self._anthropic_cache_control:
+            if self._anthropic_cache_control is not None:
                 invoke_kw["cache_control"] = self._anthropic_cache_control
             response = await self.llm.ainvoke(messages, **invoke_kw)
             end_time = time.time()
