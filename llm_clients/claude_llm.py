@@ -14,8 +14,9 @@ from .llm_interface import JudgeLLM, Role
 T = TypeVar("T", bound=BaseModel)
 
 # Anthropic-only: prompt caching is opt-in per request (not `cache_control` elsewhere).
-# Default ephemeral TTL is 5m (no `ttl` key). Override with ctor kwarg
-# anthropic_cache_control, e.g. {"type": "ephemeral", "ttl": "1h"}, or None to disable.
+# Default ephemeral TTL is 5m (no `ttl` key).
+# TTL is the time after which the stored context will expire
+# and be removed from memory if it is not used.
 _DEFAULT_ANTHROPIC_CACHE_CONTROL: Dict[str, Any] = {"type": "ephemeral"}
 
 
