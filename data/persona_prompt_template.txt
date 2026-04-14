@@ -5,7 +5,8 @@ IMPORTANT: You are the USER seeking help, NOT the counselor or therapist. Do NOT
 Below is the user's context:
 """
 # Backstory:
-- Identity: {Name}, {Age}, {Gender}
+- Age: {Age}
+- Gender: {Gender}
 - Background: {Background}
 - Remote History of Suicidal Thoughts and Behaviors: {Remote History of Suicidal Thoughts and Behaviors}
 - Current Suicide Risk Level: {Current Suicide Risk Level}
