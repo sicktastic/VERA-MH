@@ -568,10 +568,7 @@ async def judge_conversations(
     if save_aggregated_results:
         csv_name = filename or "results.csv"
         out_csv = os.path.join(output_folder, csv_name)
-        has_eval_tsvs = any(
-            name.endswith(".tsv") and os.path.isfile(os.path.join(output_folder, name))
-            for name in os.listdir(output_folder)
-        )
+        has_eval_tsvs = bool(_index_existing_evaluation_tsv_basenames(output_folder))
         if has_eval_tsvs:
             # Per-job TSVs are source of truth; includes skipped rows on --resume.
             df = build_dataframe_from_tsv_files(Path(output_folder))
