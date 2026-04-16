@@ -15,7 +15,15 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class GeminiLLM(JudgeLLM):
-    """Gemini implementation using LangChain."""
+    """Gemini implementation using LangChain.
+
+    Newer Gemini models may use the API's **implicit** prompt caching automatically
+    (shared-prefix requests); this client does not add special flags for that.
+
+    **Explicit** Context Caching (``cached_content`` resource names) is not wired here;
+    it needs a separate cache create/update lifecycle. There is no Anthropic-style
+    ``cache_control`` on ``ChatGoogleGenerativeAI``.
+    """
 
     def _no_retry_substrings(self) -> tuple[str, ...]:
         # Google AI / Gemini API (ai.google.dev); LangChain may wrap HTTP/GRPC text.

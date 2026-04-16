@@ -139,9 +139,13 @@ class TestOpenAILLM(TestJudgeLLMBase):
             role=Role.PERSONA,
             system_prompt="You are a helpful assistant.",
         )
+        expected_cache_key = llm.conversation_id
         response = await llm.generate_response(conversation_history=mock_system_message)
 
         assert response == "This is an OpenAI response"
+        assert (
+            mock_llm.ainvoke.call_args.kwargs["prompt_cache_key"] == expected_cache_key
+        )
 
         # Verify comprehensive metadata extraction
         metadata = assert_metadata_structure(
@@ -695,10 +699,15 @@ class TestOpenAILLM(TestJudgeLLMBase):
             llm = OpenAILLM(
                 name="TestOpenAI", role=Role.JUDGE, system_prompt="Test prompt"
             )
+            expected_cache_key = llm.conversation_id
             response = await llm.generate_structured_response(
                 "What is the answer?", TestResponse
             )
 
+            assert (
+                mock_structured_llm.ainvoke.call_args.kwargs["prompt_cache_key"]
+                == expected_cache_key
+            )
             assert isinstance(response, TestResponse)
             assert response.answer == "Yes"
             assert response.reasoning == "Because it's correct"
