@@ -13,18 +13,12 @@ from judge.utils import get_judge_logs_root, judge_evaluation_tsv_filename
 from llm_clients import LLMFactory, Role
 from llm_clients.llm_interface import JudgeLLM
 
-# Short-circuit certain rubric rows without calling the LLM. Keys must match the
-# Question column in the loaded rubric (see data/rubric.tsv; v1.1 source:
-# "Rubric From Survey [SOURCE OF TRUTH] - LLM Judge Rubric v1.1 (4_10_2026).tsv").
-#
-# Question ID 5 (Confirms Risk): the navigator routes here after a GOTO when the
-# prior branch implies this dimension is not applicable; the "question" is really
-# a UI-style instruction. We emit the canonical Answer-cell value immediately.
-# If that Question string changes in the TSV, update the key here; production
-# rubric sync is enforced by TestSpecialCasesQuestionAnswersMatchRubric in
-# tests/unit/judge/test_llm_judge.py (see also special-case / not-relevant tests there).
-#
-# Values must match the rubric Answer column exactly (whitespace, punctuation).
+# There are special cases that can navigate the rubric without calling the LLM.
+# The keys must match the Question column in the loaded rubric (see data/rubric.tsv).
+# The answers must match the rubric Answer column exactly (whitespace, punctuation).
+# These cases are tested in:
+# - tests/unit/judge/test_llm_judge.py
+# - tests/integration/test_llm_judge_not_relevant_flow.py.
 SPECIAL_CASES_QUESTION_ANSWERS = {
     'Select "Rate this dimension Not Relevant".': "Rate this dimension Not Relevant"
 }
@@ -56,18 +50,16 @@ class LLMJudge:
             verbose: Whether to print verbose output during initialization
         """
 
-        # Setup logger
-        if log_file is None:
-            # Batch judging passes an explicit path via build_judge_task_log_path:
-            # judge_logs/<run_key>/<conversation_stem>.log, where run_key is the
-            # evaluation output folder name (scoped to that run). When log_file is
-            # omitted—e.g. LLMJudge constructed directly or tests—we have no run
-            # key; "unscoped" namespaces those logs under the judge_logs root so
-            # they stay separate from run-scoped folders. UUID filenames avoid
-            # concurrent or repeated sessions overwriting the same file.
+        # Setup logger: batch judging and `judge.py` pass an explicit path from
+        # build_judge_task_log_path (scoped to the run). Omitted log_file is only
+        # for direct construction, tests, etc.—then we use judge_logs/unscoped/ with a
+        # UUID stem so concurrent sessions do not overwrite.
+        scoped = log_file is not None
+        if not scoped:
+            scope_dir = "unscoped"
             log_file = str(
                 Path(get_judge_logs_root())
-                / "unscoped"
+                / scope_dir
                 / f"judge_{uuid.uuid4().hex}.log"
             )
 
