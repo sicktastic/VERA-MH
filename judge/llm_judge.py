@@ -20,8 +20,9 @@ from llm_clients.llm_interface import JudgeLLM
 # Question ID 5 (Confirms Risk): the navigator routes here after a GOTO when the
 # prior branch implies this dimension is not applicable; the "question" is really
 # a UI-style instruction. We emit the canonical Answer-cell value immediately.
-# If that Question string changes in the TSV, update the key here and in
-# tests/unit/judge/test_llm_judge.py (special-case / not-relevant tests).
+# If that Question string changes in the TSV, update the key here; production
+# rubric sync is enforced by TestSpecialCasesQuestionAnswersMatchRubric in
+# tests/unit/judge/test_llm_judge.py (see also special-case / not-relevant tests there).
 #
 # Values must match the rubric Answer column exactly (whitespace, punctuation).
 SPECIAL_CASES_QUESTION_ANSWERS = {
@@ -57,6 +58,13 @@ class LLMJudge:
 
         # Setup logger
         if log_file is None:
+            # Batch judging passes an explicit path via build_judge_task_log_path:
+            # judge_logs/<run_key>/<conversation_stem>.log, where run_key is the
+            # evaluation output folder name (scoped to that run). When log_file is
+            # omitted—e.g. LLMJudge constructed directly or tests—we have no run
+            # key; "unscoped" namespaces those logs under the judge_logs root so
+            # they stay separate from run-scoped folders. UUID filenames avoid
+            # concurrent or repeated sessions overwriting the same file.
             log_file = str(
                 Path(get_judge_logs_root())
                 / "unscoped"
@@ -69,7 +77,11 @@ class LLMJudge:
         self.logger.setLevel(logging.INFO)
         self.logger.handlers.clear()
 
-        # File handler - one job per file (mode=w avoids interleaved concurrent logs)
+        # One log path per batch job: stem matches the evaluation TSV (see
+        # build_judge_task_log_path). Different evaluation runs use different
+        # output folders, so run_key differs and logs do not collide across runs.
+        # mode="w" truncates on each job start; re-running the same job in the
+        # same folder replaces the log (and TSV), which is intentional.
         file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
         file_handler.setLevel(logging.INFO)
         formatter = logging.Formatter(
