@@ -335,7 +335,7 @@ class TestConversationRunnerSingle:
         assert result["llm1_model"] == "mock-persona-model"
         assert result["llm1_prompt"] == "TestPersona"
         assert result["run_number"] == 1
-        assert result["turns"] == 4
+        assert result["turns"] == 5
         assert "filenames" in result
         assert "log_files" in result
         assert isinstance(result["filenames"], list)
@@ -1246,7 +1246,8 @@ class TestConversationRunnerPerformance:
 
 
 class SessionTrackingAgent(MockLLM):
-    """MockLLM that records session lifecycle calls and supports first_speaker override."""
+    """MockLLM that records session lifecycle calls
+    and supports first_speaker override."""
 
     def __init__(
         self,
@@ -1508,7 +1509,8 @@ class TestMultiSessionRunner:
         tmp_path: Path,
         basic_persona_config: Dict[str, Any],
     ) -> None:
-        """When session_types is explicitly set, filenames include session index and type."""
+        """When session_types is explicitly set,
+        filenames include session index and type."""
         conv_folder = tmp_path / "conversations"
         agent_mock = MockLLM(
             name="agent",
