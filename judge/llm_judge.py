@@ -20,8 +20,9 @@ from llm_clients.llm_interface import JudgeLLM
 # Question ID 5 (Confirms Risk): the navigator routes here after a GOTO when the
 # prior branch implies this dimension is not applicable; the "question" is really
 # a UI-style instruction. We emit the canonical Answer-cell value immediately.
-# If that Question string changes in the TSV, update the key here and in
-# tests/unit/judge/test_llm_judge.py (special-case / not-relevant tests).
+# If that Question string changes in the TSV, update the key here; production
+# rubric sync is enforced by TestSpecialCasesQuestionAnswersMatchRubric in
+# tests/unit/judge/test_llm_judge.py (see also special-case / not-relevant tests there).
 #
 # Values must match the rubric Answer column exactly (whitespace, punctuation).
 SPECIAL_CASES_QUESTION_ANSWERS = {
