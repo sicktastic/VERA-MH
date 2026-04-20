@@ -2121,7 +2121,7 @@ class TestRunnerHelperFunctions:
         from judge.rubric_config import ConversationData, RubricConfig
         from judge.runner import (
             _create_evaluation_jobs,
-            _index_existing_evaluation_tsv_basenames,
+            _list_existing_evaluation_tsv_basenames,
         )
         from judge.utils import judge_evaluation_tsv_filename
 
@@ -2153,7 +2153,7 @@ class TestRunnerHelperFunctions:
             "Dimension\tScore\tReasoning\n", encoding="utf-8"
         )
 
-        existing_basenames = _index_existing_evaluation_tsv_basenames(str(out))
+        existing_basenames = _list_existing_evaluation_tsv_basenames(str(out))
         kept = _create_evaluation_jobs(
             conversations,
             judge_models,

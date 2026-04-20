@@ -169,7 +169,7 @@ def _create_evaluation_jobs(
     return jobs
 
 
-def _index_existing_evaluation_tsv_basenames(output_folder: str) -> set[str]:
+def _list_existing_evaluation_tsv_basenames(output_folder: str) -> set[str]:
     """Return set of existing TSV basenames in output folder."""
     if not os.path.isdir(output_folder):
         return set()
@@ -531,7 +531,7 @@ async def judge_conversations(
 
     total_evaluations = len(conversations) * sum(judge_models.values())
     existing_tsv_basenames = (
-        _index_existing_evaluation_tsv_basenames(output_folder) if resume else None
+        _list_existing_evaluation_tsv_basenames(output_folder) if resume else None
     )
 
     batch_start = datetime.now()
@@ -568,14 +568,14 @@ async def judge_conversations(
     if save_aggregated_results:
         csv_name = filename or "results.csv"
         out_csv = os.path.join(output_folder, csv_name)
-        # On resume, skip a second listdir if pre-batch TSVs existed; otherwise
-        # the batch may have created the first TSVs, so scan again.
+        # On resume: if the initial scan found any evaluation TSV basenames, at
+        # least one matching file still exists after the batch (this path does
+        # not delete TSVs). If the scan was empty, this run may have written the
+        # first TSVs — listdir again.
         if resume and existing_tsv_basenames:
             has_eval_tsvs = True
         else:
-            has_eval_tsvs = bool(
-                _index_existing_evaluation_tsv_basenames(output_folder)
-            )
+            has_eval_tsvs = bool(_list_existing_evaluation_tsv_basenames(output_folder))
         if has_eval_tsvs:
             # Per-job TSVs are source of truth; includes skipped rows on --resume.
             df = build_dataframe_from_tsv_files(Path(output_folder))
