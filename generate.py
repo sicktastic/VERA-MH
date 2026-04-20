@@ -27,6 +27,7 @@ async def main(
     max_total_words: Optional[int] = None,
     max_personas: Optional[int] = None,
     persona_speaks_first: bool = True,
+    session_types: Optional[List[str]] = None,
 ) -> tuple[List[Dict[str, Any]], str]:
     """
     Generate conversations and return results.
@@ -103,6 +104,7 @@ async def main(
         max_total_words=max_total_words,
         max_personas=max_personas,
         persona_speaks_first=persona_speaks_first,
+        session_types=session_types,
     )
 
     # Run conversations
@@ -260,6 +262,15 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--sessions",
+        help=(
+            "Comma-separated sequence of session types to run in order "
+        ),
+        type=lambda s: [t.strip() for t in s.split(",")],
+        default=None,
+    )
+
+    parser.add_argument(
         "--debug",
         "-d",
         help="Enable debug logging for conversation generation",
@@ -329,5 +340,6 @@ if __name__ == "__main__":
             max_total_words=args.max_total_words,
             max_personas=args.max_personas,
             persona_speaks_first=not args.provider_speaks_first,
+            session_types=args.sessions,
         )
     )
