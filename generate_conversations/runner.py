@@ -59,6 +59,8 @@ class ConversationRunner:
         self.persona_speaks_first = persona_speaks_first
         self.resume = resume
 
+        # Though nested layout is the default, we still look for the legacy flat layout
+        # Where the .txt files are at the root instead of in a subdirectory
         nested = os.path.join(folder_name, "conversations")
         legacy_flat_txts = False
         if os.path.isdir(folder_name):
