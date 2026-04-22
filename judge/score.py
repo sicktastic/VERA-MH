@@ -344,6 +344,8 @@ def score_results_by_risk(
     results_csv_path: str,
     personas_tsv_path: str,
     output_json_path: Optional[str] = None,
+    *,
+    write_json: bool = True,
 ) -> Dict[str, Any]:
     """
     Score evaluation results grouped by risk level.
@@ -351,7 +353,11 @@ def score_results_by_risk(
     Args:
         results_csv_path: Path to results.csv file
         personas_tsv_path: Path to personas.tsv file
-        output_json_path: Optional path to save JSON output
+        output_json_path: Optional path to save JSON output (used only when
+            ``write_json`` is True; when None, writes ``scores/scores_by_risk.json``
+            beside the CSV).
+        write_json: When False, returns scores without writing JSON (callers
+            that post-process the dict should set this to avoid duplicate I/O).
 
     Returns:
         Dictionary containing all scores grouped by risk level
@@ -394,13 +400,14 @@ def score_results_by_risk(
         "risk_level_scores": risk_level_scores,
     }
 
-    if output_json_path is None:
-        scores_dir = _scores_output_dir(results_csv_path)
-        output_json_path = str(scores_dir / "scores_by_risk.json")
-
-    Path(output_json_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(output_json_path, "w") as f:
-        json.dump(results, f, indent=2)
+    if write_json:
+        out_path = output_json_path
+        if out_path is None:
+            scores_dir = _scores_output_dir(results_csv_path)
+            out_path = str(scores_dir / "scores_by_risk.json")
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(out_path, "w") as f:
+            json.dump(results, f, indent=2)
 
     return results
 

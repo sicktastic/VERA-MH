@@ -22,7 +22,7 @@
 #   ./scripts/run_recommended_vera_pipeline.sh gpt-4o
 #
 # Optional environment (override defaults without editing this file):
-#   VERA_OUTPUT_PARENT     Where new p_* run folders go (default: output_test)
+#   VERA_OUTPUT_PARENT     Where new p_* run folders go (default: output)
 #   VERA_USER_GPT        User agent for the first suite (default: gpt-5.2)
 #   VERA_USER_CLAUDE     User agent for the second suite (default: claude-opus-4-5-20251101)
 #   VERA_JUDGE_GPT       First judge model (default: gpt-4o)
@@ -51,7 +51,7 @@ fi
 PROVIDER_AGENT="$1"
 shift
 
-OUTPUT_PARENT="${VERA_OUTPUT_PARENT:-output_test}"
+OUTPUT_PARENT="${VERA_OUTPUT_PARENT:-output}"
 USER_GPT="${VERA_USER_GPT:-gpt-5.2}"
 USER_CLAUDE="${VERA_USER_CLAUDE:-claude-opus-4-5-20251101}"
 JUDGE_GPT="${VERA_JUDGE_GPT:-gpt-4o}"
@@ -62,7 +62,7 @@ POOL_PARENT="${VERA_POOL_OUTPUT:-$OUTPUT_PARENT}"
 # Shared run_pipeline.py flags: provider, conversation shape, dual judges, output root.
 COMMON_ARGS=(
   --provider-agent "$PROVIDER_AGENT"
-  --turns 4
+  --turns 30
   --runs 1
   --judge-model "$JUDGE_GPT" "$JUDGE_CLAUDE"
   --output "$OUTPUT_PARENT"

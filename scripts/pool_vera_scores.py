@@ -315,11 +315,12 @@ def pool_evaluation_directories(
     if not skip_risk_analysis and personas_tsv.is_file():
         try:
             risk_results = score_results_by_risk(
-                str(results_csv), str(personas_tsv), None
+                str(results_csv), str(personas_tsv), write_json=False
             )
             risk_results["judge_model"] = "pooled"
             risk_results["persona_model"] = "pooled"
             risk_json = out_eval / "scores" / "scores_by_risk.json"
+            risk_json.parent.mkdir(parents=True, exist_ok=True)
             risk_json.write_text(json.dumps(risk_results, indent=2), encoding="utf-8")
             risk_viz = out_eval / "scores" / "scores_by_risk_visualization.png"
             create_risk_level_visualizations(risk_results, risk_viz)
