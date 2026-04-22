@@ -26,6 +26,7 @@ from judge.score_viz import (
     create_risk_level_visualizations,
     create_visualizations,
 )
+from judge.utils import resolve_conversation_input
 from llm_clients.llm_interface import DEFAULT_START_PROMPT
 from utils.naming import is_generation_run_folder_basename, is_judge_run_folder_basename
 from utils.utils import parse_key_value_list
@@ -482,7 +483,9 @@ async def main():
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         sys.exit(1)
 
-    transcripts_dir = os.path.join(conversation_folder, "conversations")
+    # Same nested vs flat transcript resolution as judge.py (legacy runs have .txt
+    # at the generation run root; new layout uses .../conversations/*.txt).
+    transcripts_dir, _, _ = resolve_conversation_input(conversation_folder)
     conversation_files = []
     if os.path.isdir(transcripts_dir):
         conversation_files = [
@@ -500,7 +503,10 @@ async def main():
         n_listed = (
             len(os.listdir(transcripts_dir)) if os.path.isdir(transcripts_dir) else 0
         )
-        print(f"Files in conversations/: {n_listed}")
+        print(
+            f"Files in transcript directory ({_display_path(transcripts_dir)}): "
+            f"{n_listed}"
+        )
         print("")
         print("Possible causes:")
         print(

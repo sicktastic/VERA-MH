@@ -89,9 +89,10 @@ def get_judge_logs_root() -> str:
     return os.environ.get("VERA_JUDGE_LOGS_ROOT", "judge_logs")
 
 
-def resolve_judge_conversation_input(folder: str) -> tuple[str, Optional[str], str]:
+def resolve_conversation_input(folder: str) -> tuple[str, Optional[str], str]:
     """
-    Resolve transcript directory and generation run root for ``judge.py -f``.
+    Resolve transcript directory and generation run root
+    to find conversation .txt files.
 
     Returns:
         (transcripts_dir, gen_run_root_or_none, conversation_run_basename)

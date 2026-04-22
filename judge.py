@@ -18,7 +18,7 @@ from judge.rubric_config import ConversationData, RubricConfig, load_conversatio
 from judge.utils import (
     build_judge_task_log_path,
     parse_judge_models,
-    resolve_judge_conversation_input,
+    resolve_conversation_input,
 )
 from utils.naming import (
     build_single_conversation_run_folder_name,
@@ -198,9 +198,7 @@ async def main(args) -> Optional[str]:
         print(f"Evaluation output: {out_run}/")
         return out_run
 
-    transcripts_dir, gen_run, conv_basename = resolve_judge_conversation_input(
-        args.folder
-    )
+    transcripts_dir, gen_run, conv_basename = resolve_conversation_input(args.folder)
 
     print(f"📂 Loading conversations from {transcripts_dir}...")
     conversations = await load_conversations(transcripts_dir, limit=args.limit)
