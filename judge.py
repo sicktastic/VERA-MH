@@ -15,11 +15,8 @@ from typing import Optional
 from judge import judge_conversations, judge_single_conversation
 from judge.llm_judge import LLMJudge
 from judge.rubric_config import ConversationData, RubricConfig, load_conversations
-from judge.utils import (
-    build_judge_task_log_path,
-    parse_judge_models,
-    resolve_conversation_input,
-)
+from judge.utils import build_judge_task_log_path, parse_judge_models
+from utils.conversation_layout import resolve_conversation_input
 from utils.naming import (
     build_single_conversation_run_folder_name,
     is_judge_run_folder_basename,

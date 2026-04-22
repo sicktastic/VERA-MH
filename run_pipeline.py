@@ -26,8 +26,8 @@ from judge.score_viz import (
     create_risk_level_visualizations,
     create_visualizations,
 )
-from judge.utils import resolve_conversation_input
 from llm_clients.llm_interface import DEFAULT_START_PROMPT
+from utils.conversation_layout import resolve_conversation_input
 from utils.naming import is_generation_run_folder_basename, is_judge_run_folder_basename
 from utils.utils import parse_key_value_list
 

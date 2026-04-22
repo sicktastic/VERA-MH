@@ -89,35 +89,6 @@ def get_judge_logs_root() -> str:
     return os.environ.get("VERA_JUDGE_LOGS_ROOT", "judge_logs")
 
 
-def resolve_conversation_input(folder: str) -> tuple[str, Optional[str], str]:
-    """
-    Resolve transcript directory and generation run root
-    to find conversation .txt files.
-
-    Returns:
-        (transcripts_dir, gen_run_root_or_none, conversation_run_basename)
-
-    - If ``folder/conversations/`` contains ``.txt`` files, ``folder`` is treated as
-      a generation run root (nested layout); transcripts are loaded from
-      ``folder/conversations``.
-    - Otherwise, if ``folder`` itself contains ``.txt`` files, use the legacy flat
-      layout (``gen_run_root`` is None).
-    """
-    folder = os.path.normpath(os.path.abspath(folder))
-    nested = os.path.join(folder, "conversations")
-    if os.path.isdir(nested):
-        nested_txts = [f for f in os.listdir(nested) if f.endswith(".txt")]
-        if nested_txts:
-            return nested, folder, os.path.basename(folder)
-    if os.path.isdir(folder):
-        flat_txts = [f for f in os.listdir(folder) if f.endswith(".txt")]
-        if flat_txts:
-            return folder, None, os.path.basename(folder)
-    if os.path.isdir(nested):
-        return nested, folder, os.path.basename(folder)
-    return folder, None, os.path.basename(folder)
-
-
 def build_judge_task_log_path(
     run_key: str,
     conversation_filename: str,
