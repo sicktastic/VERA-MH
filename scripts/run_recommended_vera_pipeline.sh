@@ -1,29 +1,44 @@
 #!/usr/bin/env bash
-# Run README "Recommended Settings" via run_pipeline.py (generation → judge → score).
-# See README.md § Recommended Settings: 100 personas, 30 turns, two user-agent suites
-# (GPT 5.2 and Claude Opus 4.5) with one conversation per persona each (200 total),
-# judged with GPT-4o and Claude Sonnet 4.5.
 #
-# After both pipelines complete, merges the two evaluation folders into one pooled
-# score bundle (results.csv + scores/) via scripts/pool_vera_scores.py.
+# run_recommended_vera_pipeline.sh
+# --------------------------------
+# Orchestrates the README-style “recommended” VERA flow in three phases:
+#
+#   1) Generate + judge + score with user model A (default: GPT 5.2) talking to
+#      the provider agent you pass on the command line.
+#   2) Same pipeline with user model B (default: Claude Opus 4.5).
+#   3) Merge the two judge output folders into one pooled bundle (results.csv
+#      and scores/) using pool_vera_scores.py.
+#
+# Implementation detail: each phase runs run_pipeline.py; the evaluation
+# directory path printed by the pipeline is captured from the log via
+# pool_vera_scores.py --extract-from-log so the final pooling step knows which
+# folders to merge.
 #
 # Usage:
 #   ./scripts/run_recommended_vera_pipeline.sh <provider-agent-model> [extra run_pipeline.py args...]
 #
-# Examples:
+# Example:
 #   ./scripts/run_recommended_vera_pipeline.sh gpt-4o
-#   ./scripts/run_recommended_vera_pipeline.sh claude-sonnet-4-5-20250929 --max-concurrent 10
 #
-# Optional environment:
-#   VERA_OUTPUT_PARENT      Parent directory for new p_* folders (default: output)
-#   VERA_MAX_CONCURRENT     Passed as --max-concurrent when set
-#   VERA_MAX_PERSONAS     Passed as --max-personas when set (for dry runs; omit for all personas)
-#   VERA_POOL_OUTPUT        Parent directory for pooled j_pooled__* folder (default: same as VERA_OUTPUT_PARENT)
-#   VERA_POOL_SKIP_RISK     If non-empty, skip pooled risk-level analysis (--skip-risk-analysis)
+# Optional environment (override defaults without editing this file):
+#   VERA_OUTPUT_PARENT     Where new p_* run folders go (default: output_test)
+#   VERA_USER_GPT        User agent for the first suite (default: gpt-5.2)
+#   VERA_USER_CLAUDE     User agent for the second suite (default: claude-opus-4-5-20251101)
+#   VERA_JUDGE_GPT       First judge model (default: gpt-4o)
+#   VERA_JUDGE_CLAUDE    Second judge model (default: claude-sonnet-4-5-20250929)
+#   VERA_MAX_CONCURRENT  Forwarded as --max-concurrent (default: 10)
+#   VERA_MAX_PERSONAS    Forwarded as --max-personas (default: 100)
+#   VERA_POOL_OUTPUT     Parent dir for pooled j_pooled__* output (default: same as VERA_OUTPUT_PARENT)
+#   VERA_POOL_SKIP_RISK  If set (non-empty), pooled run skips risk-level analysis (--skip-risk-analysis)
 
 set -euo pipefail
+# -e: exit on first failing command
+# -u: treat unset variables as errors
+# -o pipefail: pipeline fails if any stage fails (needed for PIPESTATUS below)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Repo root: run_pipeline.py and output dirs are relative to project root.
 cd "$SCRIPT_DIR/.."
 
 if [[ $# -lt 1 ]]; then
@@ -31,23 +46,20 @@ if [[ $# -lt 1 ]]; then
   exit 2
 fi
 
+# First positional: the “provider” side model (the agent being evaluated).
+# Remaining args are forwarded verbatim to run_pipeline.py for both suites.
 PROVIDER_AGENT="$1"
 shift
 
 OUTPUT_PARENT="${VERA_OUTPUT_PARENT:-output_test}"
-# USER_GPT="${VERA_USER_GPT:-gpt-5.2}"
-USER_GPT="${VERA_USER_GPT:-gpt-5.4-nano}"
-# USER_CLAUDE="${VERA_USER_CLAUDE:-claude-opus-4-5-20251101}"
-USER_CLAUDE="${VERA_USER_CLAUDE:-claude-haiku-4-5-20251001}"
-# JUDGE_GPT="${VERA_JUDGE_GPT:-gpt-4o}"
-JUDGE_GPT="${VERA_JUDGE_GPT:-gpt-4o-mini}"
-# JUDGE_CLAUDE="${VERA_JUDGE_CLAUDE:-claude-sonnet-4-5-20250929}"
-JUDGE_CLAUDE="${VERA_JUDGE_CLAUDE:-claude-haiku-4-5-20251001}"
+USER_GPT="${VERA_USER_GPT:-gpt-5.2}"
+USER_CLAUDE="${VERA_USER_CLAUDE:-claude-opus-4-5-20251101}"
+JUDGE_GPT="${VERA_JUDGE_GPT:-gpt-4o}"
+JUDGE_CLAUDE="${VERA_JUDGE_CLAUDE:-claude-sonnet-4-5-20250929}"
 
 POOL_PARENT="${VERA_POOL_OUTPUT:-$OUTPUT_PARENT}"
 
-# TODO set max concurrency
-
+# Shared run_pipeline.py flags: provider, conversation shape, dual judges, output root.
 COMMON_ARGS=(
   --provider-agent "$PROVIDER_AGENT"
   --turns 4
@@ -56,22 +68,23 @@ COMMON_ARGS=(
   --output "$OUTPUT_PARENT"
 )
 
-if [[ -n "${VERA_MAX_CONCURRENT:-}" ]]; then
-  COMMON_ARGS+=(--max-concurrent "$VERA_MAX_CONCURRENT")
-fi
-if [[ -n "${VERA_MAX_PERSONAS:-}" ]]; then
-  COMMON_ARGS+=(--max-personas "$VERA_MAX_PERSONAS")
-fi
+# Throttling and persona cap (defaults here; override with VERA_* env vars).
+COMMON_ARGS+=(--max-concurrent "${VERA_MAX_CONCURRENT:-10}" --max-personas "${VERA_MAX_PERSONAS:-100}")
 
+# Arguments for the final pool_vera_scores.py invocation only.
 POOL_ARGS=(-o "$POOL_PARENT")
 if [[ -n "${VERA_POOL_SKIP_RISK:-}" ]]; then
   POOL_ARGS+=(--skip-risk-analysis)
 fi
 
+# Run one full pipeline (generate → judge → score), tee full log to stderr for
+# visibility, then parse the log to recover the evaluation directory path.
+# stdout of this function is only the path string (for command substitution).
 run_pipeline_capture_eval() {
   local log
   log="$(mktemp)"
-  # Send pipeline transcript to stderr so command substitution only captures the path.
+  # tee duplicates stream to stderr so the user sees progress; stdout would
+  # otherwise pollute the captured eval path from command substitution.
   python3 run_pipeline.py "$@" 2>&1 | tee "$log" >&2
   local st="${PIPESTATUS[0]}"
   if [[ "$st" -ne 0 ]]; then
@@ -96,4 +109,5 @@ EVAL_CLAUDE="$(run_pipeline_capture_eval --user-agent "$USER_CLAUDE" "${COMMON_A
 
 echo ""
 echo "== Pooling evaluation scores into $POOL_PARENT =="
+# Merge the two evaluation roots into one j_pooled__* folder under POOL_PARENT.
 python3 "$SCRIPT_DIR/pool_vera_scores.py" "${POOL_ARGS[@]}" "$EVAL_GPT" "$EVAL_CLAUDE"
