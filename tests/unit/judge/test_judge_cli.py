@@ -2,7 +2,7 @@
 
 import importlib.util
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
 
@@ -61,6 +61,7 @@ class TestJudgeParser:
         assert args.max_concurrent is None
         assert args.per_judge is False
         assert args.verbose_workers is False
+        assert args.resume is False
         assert args.judge_model_extra_params == {}
 
     def test_short_flags(self):
@@ -153,6 +154,7 @@ class TestJudgeMain:
                 judge_model="gpt-4o",
                 rubric_config="rubric_config",
                 judge_model_extra_params={},
+                log_file=ANY,
             )
             judge_single.assert_awaited_once_with(
                 "judge_instance", "conversation_data", "evaluations"
@@ -212,4 +214,44 @@ class TestJudgeMain:
             assert call_kw["judge_model_extra_params"] == {}
             assert call_kw["per_judge"] is True
             assert call_kw["verbose_workers"] is True
+            assert call_kw["resume"] is False
             assert result == "evaluations/run1_timestamp"
+
+    @pytest.mark.asyncio
+    async def test_main_folder_resume_uses_output_folder(self, tmp_path: Path):
+        """main() with --resume passes output_folder instead of output_root."""
+        eval_folder = tmp_path / "j_eval__run1"
+        eval_folder.mkdir(parents=True, exist_ok=True)
+
+        parser = get_parser()
+        args = parser.parse_args(
+            [
+                "-f",
+                "conversations/run1",
+                "-j",
+                "gpt-4o:2",
+                "-o",
+                str(eval_folder),
+                "--resume",
+            ]
+        )
+        with (
+            patch.object(_judge_script, "RubricConfig") as RubricConfig,
+            patch.object(
+                _judge_script, "load_conversations", new_callable=AsyncMock
+            ) as load_convos,
+            patch.object(
+                _judge_script, "judge_conversations", new_callable=AsyncMock
+            ) as judge_convos,
+        ):
+            RubricConfig.load = AsyncMock(return_value="rubric_config")
+            load_convos.return_value = []
+            judge_convos.return_value = ([], str(eval_folder))
+
+            result = await main(args)
+
+            call_kw = judge_convos.await_args[1]
+            assert "output_root" not in call_kw
+            assert call_kw["output_folder"] == str(eval_folder)
+            assert call_kw["resume"] is True
+            assert result == str(eval_folder)

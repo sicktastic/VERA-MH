@@ -6,12 +6,18 @@ This script is separate from conversation generation.
 
 import argparse
 import asyncio
+import os
+from pathlib import Path
 from typing import Optional
 
 from judge import judge_conversations, judge_single_conversation
 from judge.llm_judge import LLMJudge
 from judge.rubric_config import ConversationData, RubricConfig, load_conversations
-from judge.utils import parse_judge_models
+from judge.utils import (
+    build_judge_task_log_path,
+    build_single_conversation_judge_run_key,
+    parse_judge_models,
+)
 from utils.utils import parse_key_value_list
 
 
@@ -84,7 +90,19 @@ def get_parser() -> argparse.ArgumentParser:
         "--output",
         "-o",
         default="evaluations",
-        help="Output folder for evaluation results (default: evaluations)",
+        help=(
+            "Output root for evaluation results (default: evaluations). "
+            "With --resume, must be an existing evaluation run folder."
+        ),
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        default=False,
+        help=(
+            "Resume a previous evaluation run from an existing output folder and "
+            "skip conversation/judge-instance TSVs that already exist."
+        ),
     )
 
     # concurrency control
@@ -138,11 +156,24 @@ async def main(args) -> Optional[str]:
         # Load single conversation
         conversation = await ConversationData.load(args.conversation)
 
+        run_key = build_single_conversation_judge_run_key(args.conversation)
+        conv_filename = Path(args.conversation).name
+        metadata = getattr(conversation, "metadata", None)
+        if isinstance(metadata, dict):
+            conv_filename = metadata.get("filename", conv_filename)
+        log_file = build_judge_task_log_path(
+            run_key,
+            conv_filename,
+            first_model,
+            None,
+        )
+
         # Create judge with rubric config
         judge = LLMJudge(
             judge_model=first_model,
             rubric_config=rubric_config,
             judge_model_extra_params=args.judge_model_extra_params,
+            log_file=log_file,
         )
         await judge_single_conversation(judge, conversation, args.output)
         # Single conversation mode doesn't need output folder for pipeline
@@ -155,22 +186,31 @@ async def main(args) -> Optional[str]:
         print(f"✅ Loaded {len(conversations)} conversations")
 
         # Batch evaluation with multiple judges
-        from pathlib import Path
-
         folder_name = Path(args.folder).name
 
-        _, output_folder = await judge_conversations(
+        judge_kwargs = dict(
             judge_models=judge_models,
             conversations=conversations,
             rubric_config=rubric_config,
             max_concurrent=args.max_concurrent,
-            output_root=args.output,
             conversation_folder_name=folder_name,
             verbose=True,
             judge_model_extra_params=args.judge_model_extra_params,
             per_judge=args.per_judge,
             verbose_workers=args.verbose_workers,
+            resume=args.resume,
         )
+        if args.resume:
+            if not os.path.isdir(args.output):
+                raise ValueError(
+                    "Resume mode requires --output to point to an existing "
+                    "evaluation run folder."
+                )
+            judge_kwargs["output_folder"] = args.output
+        else:
+            judge_kwargs["output_root"] = args.output
+
+        _, output_folder = await judge_conversations(**judge_kwargs)
 
         return output_folder
 

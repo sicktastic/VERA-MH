@@ -39,6 +39,9 @@ from .utils import extract_persona_name_from_filename, load_rubric_structure
 # Load dimensions from rubric file
 DIMENSIONS, _ = load_rubric_structure("data/rubric.tsv")
 
+# Risk level order for consistent sorting
+RISK_LEVEL_ORDER = ["None", "Low", "High", "Immediate"]
+
 # Short dimension names for column headers
 DIMENSION_SHORT_NAMES = {
     "Detects Risk": "Detects potential risk",
@@ -144,6 +147,8 @@ def parse_evaluation_filename(filename: str) -> Dict[str, Union[str, int]]:
     """
     Parse an evaluation filename to extract components.
 
+    Basenames come from `judge.utils.judge_evaluation_tsv_filename` (see LLMJudge).
+
     Format: {id}_{persona}_{user_model}_{run}_{judge_model}_{iteration}.tsv
     Example: 000682_Alix_gemini-3-pro-preview_run22_gpt-4o_i1.tsv
 
@@ -176,6 +181,37 @@ def parse_evaluation_filename(filename: str) -> Dict[str, Union[str, int]]:
         "judge_model": match.group(5),
         "judge_iteration": int(match.group(6)),
     }
+
+
+def parse_judge_metadata_from_evaluation_tsv_filename(filename: str) -> Tuple[str, int]:
+    """
+    Extract ``judge_model`` and ``judge_instance`` (1-based) from a TSV basename.
+
+    Uses :func:`parse_evaluation_filename` for structured production names
+    (``{hex}_{persona}_{user}_run{N}_{judge}_i{instance}``).
+
+    If that fails, applies the same batch layout as
+    :func:`judge.utils.judge_evaluation_tsv_filename` with ``judge_instance`` set:
+    ``{conversation_stem}_{normalized_judge}_i{instance}``, where ``normalized_judge``
+    has no ``_`` (only ``/`` and ``:`` are replaced in the model id). Matches the
+    first fallback in :func:`extract_conversation_filename_from_tsv`.
+
+    Returns:
+        ``("", 0)`` when the filename cannot be interpreted.
+
+    Note:
+        Judge model strings that contain underscores after normalization cannot be
+        recovered from the basename alone; use structured filenames for those runs.
+    """
+    parsed = parse_evaluation_filename(filename)
+    if parsed:
+        return str(parsed["judge_model"]), int(parsed["judge_iteration"])
+
+    name = filename.replace(".tsv", "")
+    match = re.search(r"(.+?)_([^_]+)_i(\d+)$", name)
+    if match:
+        return match.group(2), int(match.group(3))
+    return "", 0
 
 
 def extract_conversation_filename_from_tsv(tsv_filename: str) -> str:
@@ -439,11 +475,9 @@ def build_results_csv_from_tsv_files(evaluations_dir) -> pd.DataFrame:
             tsv_df = pd.read_csv(tsv_file, sep="\t")
 
             # Parse TSV filename to extract judge_model, judge_instance, and judge_id
-            parsed = parse_evaluation_filename(filename)
-            judge_model = parsed.get("judge_model", "") if parsed else ""
-            judge_iteration = parsed.get("judge_iteration", 0) if parsed else 0
-            # Coerce judge_iteration to int (parser may yield str or int)
-            judge_instance = int(judge_iteration) if judge_iteration else 0
+            judge_model, judge_instance = (
+                parse_judge_metadata_from_evaluation_tsv_filename(filename)
+            )
             judge_id = max(0, judge_instance - 1)  # judge_id is 0-based
 
             # Build row dictionary
@@ -550,12 +584,14 @@ def load_personas_risk_levels(personas_tsv_path: Path) -> Dict[str, str]:
     Returns:
         Dictionary mapping persona name to risk level, or empty dict if error
     """
+    # read with keep_default_na=False to prevent pandas
+    # from converting value "None" to NaN for Short Current Suicide Risk Level
     df = pd.read_csv(personas_tsv_path, sep="\t", keep_default_na=False)
     # Map persona name to risk level
     # Use keep_default_na=False to prevent pandas from converting "None" string to NaN
     risk_map = (
-        df[["Name", "Current Risk Level"]]
-        .set_index("Name")["Current Risk Level"]
+        df[["Name", "Short Current Suicide Risk Level"]]
+        .set_index("Name")["Short Current Suicide Risk Level"]
         .astype(str)
         .str.strip()
         .to_dict()
@@ -628,13 +664,14 @@ def has_dimension_data(df: pd.DataFrame) -> bool:
     return any(dim in df.columns and df[dim].notna().any() for dim in DIMENSIONS)
 
 
-def ensure_results_csv(eval_path) -> pd.DataFrame:
+def ensure_results_csv(eval_path, *, force: bool = False) -> pd.DataFrame:
     """
     Ensure results.csv exists and is valid, regenerating from TSV files if needed.
     Preserves existing columns (like question_id and reasoning) when rebuilding.
 
     Args:
         eval_path: Path to evaluation directory (can be str or Path)
+        force: If True, always rebuild from TSV files (overwrites results.csv).
 
     Returns:
         DataFrame with evaluation results
@@ -644,7 +681,7 @@ def ensure_results_csv(eval_path) -> pd.DataFrame:
     eval_path = Path(eval_path)
     results_csv_path = eval_path / "results.csv"
 
-    if results_csv_path.exists():
+    if not force and results_csv_path.exists():
         try:
             df = pd.read_csv(results_csv_path)
             # Check if it has dimension columns with data

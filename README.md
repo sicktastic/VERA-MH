@@ -12,6 +12,7 @@ There are known limitations of the current structure, which will be simplified a
 ## Table of Contents
 
 - [Getting Started](#getting-started)
+- [Connecting your own LLM, Agent, or API](#connecting-your-own-llm-or-api)
 - [Using Extra Parameters](#using-extra-parameters)
 - [Data Files](#data-files)
 - [LLM Conversation Simulator](#llm-conversation-simulator)
@@ -27,6 +28,21 @@ There are known limitations of the current structure, which will be simplified a
 - [First Announcement](https://www.springhealth.com/blog/introducing-vera-mh-new-standard-ethical-ai-mental-healthcare)
 
 # Getting started
+
+## Connecting your own LLM, Agent, or API
+
+Use this when the **provider** you want to evaluate (the mental-health chatbot under test) is **not** already available as a built-in model name in `generate.py`—for example a private HTTP API, an internal gateway, or a new cloud provider.
+
+**What to implement**
+
+1. **Examples** — [`llm_clients/endpoint_llm.py`](llm_clients/endpoint_llm.py) is a working HTTP-style provider example (chat-oriented; judge support may be limited). Other [`llm_clients/`](llm_clients/) modules show LangChain-backed providers.
+2. **Contract** — Subclass [`LLMInterface`](llm_clients/llm_interface.py) for conversation simulation. Subclass [`JudgeLLM`](llm_clients/llm_interface.py) only if you also need this same stack to **run as a judge** (requires structured output via `generate_structured_response`).
+3. **Methods** — Implement `start_conversation()` (first assistant turn) and `generate_response(conversation_history)` (later turns). For `JudgeLLM`, add `generate_structured_response()` for rubric scoring. The simulator passes full history each time; you can stay stateless or track server-side session IDs.
+4. **Wire-up** — Add logic in [`llm_clients/llm_factory.py`](llm_clients/llm_factory.py) to return your class when `-p` / `--provider-agent` (and user-agent if needed) matches your chosen model string. Add API keys or base URLs in [`llm_clients/config.py`](llm_clients/config.py) if required.
+5. **Run** — Use your registered model id with `generate.py` (`-p`, and `-u` for the persona model), then `judge.py` with a supported judge model (built-in judges are recommended for reliability).
+
+**Full guide** (step-by-step code, history format, metadata, structured output caveats): [docs/evaluating.md](docs/evaluating.md).
+
 ## Step-by-step
 0. **Install uv** (if not already installed):
    ```bash
@@ -50,7 +66,7 @@ There are known limitations of the current structure, which will be simplified a
    pre-commit install
    ```
 
-4. **(Optional) Create an LLM class for your agent**: see guidance [here](docs/evaluating.md)
+4. **(Optional) Custom provider** — If your product is not a supported, implement and register a client (see [Connecting your own LLM or API](#connecting-your-own-llm-or-api); full detail in [docs/evaluating.md](docs/evaluating.md))
 
 5. **End-to-End Pipeline**: For convenience, you can run the entire workflow (generation → evaluation → scoring) with a single command:
 
@@ -69,6 +85,10 @@ The pipeline script:
 - Automatically passes the output folder to `judge.py`
 - Automatically runs `judge/score.py` on the evaluation results
 - Displays a summary with all output locations
+
+Resume (optional, independent flags):
+- **`--resume-generate`** — Set **`--folder-name`** to an existing generation run directory (`p_*__a_*__t*__r*__*`). Required paths are validated before generation starts.
+- **`--resume-judge`** — Set **`--judge-output`** to the full path of an existing evaluation run directory (`j_*__*`), not the parent `evaluations/` folder alone. Required paths are validated before judging starts.
 
 For help and all available options:
 ```bash
@@ -111,15 +131,17 @@ python3 run_pipeline.py --help
 | `-usm` | `--user-first-message` | Static first message from user-agent/persona (no LLM call for first turn). Used on turn 0 when the persona/user-agent speaks first (i.e., when `--provider-speaks-first` is not set). |
 | `-usp` | `--user-start-prompt` | Prompt sent to user-agent LLM when starting the conversation (first turn). Used on turn 0 when the persona/user-agent speaks first (i.e., when `--provider-speaks-first` is not set). Default: `"Start the conversation based on the system prompt"` |
 | `-d` | `--debug` | Enable debug logging for conversation generation |
+| | `--resume` | Continue a previous run: set `--folder-name` to the existing run directory; skips persona/run pairs that already have transcript files. User/provider models, turns, and runs must match the original run (see `generate.py` validation). |
 
 **First message and start prompt:** When a role (provider or persona) speaks first, you can either supply a **first message** (a fixed string returned with no LLM call, e.g. `"How are you today?"`) or let the LLM generate the first turn using a **start prompt** (the prompt sent to the LLM when history is empty; default: `"Start the conversation based on the system prompt"`). If a first message is set for that role, the start prompt is not used for that turn. This supports both provider- and persona-first flows and records which turn used a static message vs an LLM response.
 
-This will generate conversations and store them in a subfolder of `conversations` unless specified otherwise.
+This will generate conversations and store them in a subfolder of `conversations` unless specified otherwise. To continue an interrupted generation run, pass `--resume` and set `--folder-name` to that existing run folder (same models, turns, and runs as before).
 
 7. **Judge the conversations**:
    ```bash
    python judge.py -f conversations/{YOUR_FOLDER} -j gpt-4o
    ```
+   To resume a partial batch in the same evaluation folder (same judge specs as before), add `--resume` and set `-o` to that folder, e.g. `evaluations/j_gpt-4ox1_gemini-2.5-flashx2_<timestamp>__{YOUR_FOLDER}/`.
 
 **Judge model recommendations**: **GPT-4o** and **Claude Sonnet** have the highest inter-rater reliability with human clinicians as judge models.
 
@@ -133,7 +155,8 @@ This will generate conversations and store them in a subfolder of `conversations
 | `-jep` | `--judge-model-extra-params` | Extra parameters for the judge model (optional). Examples: `temperature=0.7,max_tokens=1000`. Default: `temperature=0` (unless overridden) |
 | `-r` | `--rubrics` | Rubric file(s) to use (default: `data/rubric.tsv`) |
 | `-l` | `--limit` | Limit number of conversations to judge (for debugging) |
-| `-o` | `--output` | Output folder for evaluation results (default: `evaluations/j_model_p_model__a_model__t1__r1__timestamp`) |
+| `-o` | `--output` | Without `--resume`: parent directory where a new timestamped `j_*__*` evaluation folder is created (default: `evaluations`). With `--resume`: full path to that existing evaluation folder. |
+| | `--resume` | Continue batch judging in an existing evaluation folder: use with `-f` and `-o` pointing at that folder. Skips `(conversation, judge, instance)` jobs whose `.tsv` already exists, then rebuilds `results.csv` from all TSVs there. Not supported with `-c` / `--conversation`. |
 | `-m` | `--max-concurrent` | Maximum number of concurrent workers (default: None (no limit)). Set to a high number or omit for unlimited concurrency |
 | `-pj` | `--per-judge` | If set, `--max-concurrent` applies per judge model. Otherwise, it applies to total workers across all judges. Example: `-m 4 -pj` with two judge models runs up to 4 workers per model (8 total) |
 | `-vw` | `--verbose-workers` | Enable verbose worker logging to show concurrency behavior |
@@ -436,17 +459,23 @@ The script will:
 Add new rows to the TSV file with the required fields:
 - Name
 - Age
-- Race/Ethnicity
-- Pronouns
-- Background
-- Mental Health Context
-- Communication Style
-- Recent Stressors/Risk Factors
+- Gender
+- Current Suicide Risk Level
+- Short Current Suicide Risk Level
+- Current Suicidal Thoughts and Behaviors
+- Remote History of Suicidal Thoughts and Behaviors
 - Disclosure of Suicide Risk
-- Current Suicidal Thoughts and Behaviors, Reasons for Living
-- Current Risk Level
+- Primary Communication Style
 - Reaction to Chatbot Responses
-- Sample Prompts
+- Diagnoses and Symptoms
+- Treatment Engagement / Access
+- Mental Health Stigma
+- Financial Stress
+- Social Isolation
+- Discrimination Exposure
+- Background
+- Recent Triggers and Stressors
+- Final Seed Phrase
 
 #### 2. Modify Prompt Template (`data/persona_prompt_template.txt`)
 Update the template to include new fields or modify behavior patterns.
