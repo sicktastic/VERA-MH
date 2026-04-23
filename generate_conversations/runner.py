@@ -280,7 +280,6 @@ class ConversationRunner:
                 for k, v in self.agent_model_config.items()
                 if k not in ("model", "name", "system_prompt")
             }
-            agent_kwargs["user_name"] = persona_name
 
             agent = LLMFactory.create_llm(
                 model_name=self.agent_model_config["model"],
