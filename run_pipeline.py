@@ -49,47 +49,54 @@ def _display_path(path: str | os.PathLike[str]) -> str:
 
 def resolve_pipeline_resume_paths(args: argparse.Namespace) -> None:
     """
-    Interpret --output for fresh vs resume and attach pipeline fields on args:
+    Attach pipeline fields from ``--conversation-output`` / ``--judge-output``:
 
-    - Fresh (no resume flags): ``args._pipeline_gen_folder`` = parent directory;
-      ``_pipeline_resume_generate`` = False; ``_pipeline_judge_output`` = None.
+    - Fresh: ``_pipeline_gen_folder`` = ``--conversation-output`` (parent for new
+      ``p_*``); ``_pipeline_resume_generate`` = False; ``_pipeline_judge_output`` =
+      None.
 
-    - ``--resume-generate``: ``--output`` = existing ``p_*`` generation run folder.
+    - ``--resume-generate``: ``--conversation-output`` = existing ``p_*`` run folder
+      (same as ``generate.py --resume --output``).
 
-    - ``--resume-judge``: ``--output`` = existing ``j_*`` evaluation run folder;
-      generation reuses the parent ``p_*`` (with resume) so step 1 stays co-located.
+    - ``--resume-judge`` alone: ``--judge-output`` = existing ``j_*`` folder; step 1
+      resumes the parent ``p_*`` co-located above ``evaluations/``.
 
-    - Both resume flags: ``--output`` = ``p_*``; exactly one ``j_*`` must exist
-      under ``p_*/evaluations/``.
+    - Both flags: ``--conversation-output`` = ``p_*``; exactly one ``j_*`` under
+      ``p_*/evaluations/`` (``--judge-output`` is ignored).
     """
-    out = os.path.normpath(args.output)
+    co_raw = getattr(args, "conversation_output", None) or "output"
+    co = os.path.normpath(co_raw)
+    jo = getattr(args, "judge_output", None)
+    if isinstance(jo, str) and not jo.strip():
+        jo = None
     rg, rj = args.resume_generate, args.resume_judge
 
     if not rg and not rj:
-        args._pipeline_gen_folder = out
+        args._pipeline_gen_folder = co
         args._pipeline_resume_generate = False
         args._pipeline_judge_output = None
         return
 
-    out_path = Path(out).resolve()
-
     if rg and rj:
-        if not out_path.is_dir():
+        co_path = Path(co).resolve()
+        if not co_path.is_dir():
             print(
-                "error: with --resume-generate and --resume-judge, --output must be "
-                f"an existing directory: {out!r}",
+                "error: with --resume-generate and --resume-judge, "
+                "--conversation-output must be an existing directory: "
+                f"{co!r}",
                 file=sys.stderr,
             )
             sys.exit(2)
-        base = out_path.name
+        base = co_path.name
         if not is_generation_run_folder_basename(base):
             print(
-                "error: with both resume flags, --output must be the generation run "
-                f"folder itself (basename like p_*__a_*__...), not {base!r}",
+                "error: with both resume flags, --conversation-output must be the "
+                "generation run folder itself (basename like p_*__a_*__...), "
+                f"not {base!r}",
                 file=sys.stderr,
             )
             sys.exit(2)
-        eval_parent = out_path / "evaluations"
+        eval_parent = co_path / "evaluations"
         if not eval_parent.is_dir():
             print(
                 "error: expected evaluations/ under the generation run folder: "
@@ -119,50 +126,61 @@ def resolve_pipeline_resume_paths(args: argparse.Namespace) -> None:
                 file=sys.stderr,
             )
             sys.exit(2)
-        args._pipeline_gen_folder = str(out_path)
+        args._pipeline_gen_folder = str(co_path)
         args._pipeline_resume_generate = True
         args._pipeline_judge_output = str(j_dirs[0])
         return
 
     if rg:
-        if not out_path.is_dir():
+        co_path = Path(co).resolve()
+        if not co_path.is_dir():
             print(
-                "error: --resume-generate: --output must be an existing directory: "
-                f"{out!r}",
+                "error: --resume-generate: --conversation-output must be an existing "
+                f"directory: {co!r}",
                 file=sys.stderr,
             )
             sys.exit(2)
-        generate_basename = out_path.name
+        generate_basename = co_path.name
         if not is_generation_run_folder_basename(generate_basename):
             print(
-                "error: --resume-generate: --output must be the generation run folder "
-                f"(basename like p_*__a_*__...), not {generate_basename!r}",
+                "error: --resume-generate: --conversation-output must be the "
+                "generation run folder (basename like p_*__a_*__...), not "
+                f"{generate_basename!r}",
                 file=sys.stderr,
             )
             sys.exit(2)
-        args._pipeline_gen_folder = str(out_path)
+        args._pipeline_gen_folder = str(co_path)
         args._pipeline_resume_generate = True
         args._pipeline_judge_output = None
         return
 
     # resume_judge only
+    if not jo:
+        print(
+            "error: --resume-judge requires --judge-output pointing at the existing "
+            "evaluation run folder (j_*__*).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    out_path = Path(os.path.normpath(jo)).resolve()
     if not out_path.is_dir():
         print(
-            f"error: --resume-judge: --output must be an existing directory: {out!r}",
+            "error: --resume-judge: --judge-output must be an existing directory: "
+            f"{jo!r}",
             file=sys.stderr,
         )
         sys.exit(2)
     judge_basename = out_path.name
     if judge_basename == "evaluations":
         print(
-            "error: --resume-judge: --output must be the evaluation run folder "
+            "error: --resume-judge: --judge-output must be the evaluation run folder "
             "(j_*__*), not .../evaluations/ alone.",
             file=sys.stderr,
         )
         sys.exit(2)
     if not is_judge_run_folder_basename(judge_basename):
         print(
-            "error: --resume-judge: --output must be an evaluation run folder "
+            "error: --resume-judge: --judge-output must be an evaluation run folder "
             f"(basename like j_*__*), not {judge_basename!r}",
             file=sys.stderr,
         )
@@ -272,16 +290,25 @@ Example:
         help="Maximum number of personas to load (for testing)",
     )
     parser.add_argument(
-        "--output",
-        "-o",
+        "--conversation-output",
+        "-co",
         default="output",
         help=(
-            "Fresh run: parent directory where a new p_* folder is created (default: "
-            "output). "
-            "--resume-generate: path to the existing p_* folder. "
-            "--resume-judge: path to the existing j_* folder under .../evaluations/. "
-            "Both resume flags: path to the p_* folder (exactly one j_* must exist "
-            "under its evaluations/)."
+            "Passed to generate.py as --output: parent directory for a new p_* run "
+            "(default: output/). With --resume-generate (or both resume flags), must "
+            "be the existing p_* generation run folder."
+        ),
+    )
+    parser.add_argument(
+        "--judge-output",
+        "-jo",
+        default=None,
+        help=(
+            "Passed to judge.py as --output: parent directory for a new batch "
+            "evaluation (new j_* under this path). Default None for judge.py defaults "
+            "(<conversation-output>/evaluations/, or repo evaluations/ for legacy flat "
+            "transcript folders). With --resume-judge only, must be the existing "
+            "j_* evaluation folder path."
         ),
     )
     parser.add_argument(
@@ -329,17 +356,18 @@ Example:
         "--resume-generate",
         action="store_true",
         help=(
-            "Continue generation in an existing p_* folder; set --output to that "
-            "folder (see generate.py resume validation)."
+            "Continue generation in an existing p_* folder; set --conversation-output "
+            "(-co) to that folder (see generate.py resume validation)."
         ),
     )
     parser.add_argument(
         "--resume-judge",
         action="store_true",
         help=(
-            "Continue judging in an existing j_* folder; set --output to that full "
-            "path (.../evaluations/j_*). With both resume flags, set --output to "
-            "the p_* folder and ensure a single j_* exists under evaluations/."
+            "Continue judging in an existing j_* folder; set --judge-output (-jo) to "
+            "that full path (.../evaluations/j_*). With both resume flags, set "
+            "--conversation-output (-co) to the p_* folder and ensure a single j_* "
+            "exists under evaluations/."
         ),
     )
 
@@ -534,6 +562,11 @@ async def main():
     print("▶ Step 2/3: Evaluating conversations...")
 
     # Build argparse.Namespace for judge.py's main function
+    judge_out = (
+        args._pipeline_judge_output
+        if args.resume_judge
+        else getattr(args, "judge_output", None)
+    )
     judge_args = argparse.Namespace(
         conversation=None,  # Not using single conversation mode
         folder=conversation_folder,
@@ -541,7 +574,7 @@ async def main():
         judge_model=args.judge_model,
         judge_model_extra_params=args.judge_model_extra_params,
         limit=args.judge_limit,
-        output=args._pipeline_judge_output if args.resume_judge else None,
+        output=judge_out,
         max_concurrent=args.judge_max_concurrent,
         per_judge=args.judge_per_judge,
         verbose_workers=args.judge_verbose_workers,

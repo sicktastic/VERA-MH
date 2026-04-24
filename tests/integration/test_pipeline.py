@@ -58,7 +58,8 @@ def pipeline_args():
         max_total_words=None,
         max_concurrent=None,
         max_personas=2,
-        output="output",
+        conversation_output="output",
+        judge_output=None,
         run_id=None,
         debug=False,
         judge_model_extra_params={},
@@ -106,6 +107,50 @@ class TestPipelineArgumentParsing:
             assert args.runs == 1
             assert args.turns == 4
             assert args.judge_model == ["claude-sonnet-4-5-20250929"]
+
+    def test_parse_short_co_is_conversation_output(self):
+        """-co is shorthand for --conversation-output."""
+        from run_pipeline import parse_arguments
+
+        test_args = [
+            "--user-agent",
+            "m",
+            "--provider-agent",
+            "m",
+            "--runs",
+            "1",
+            "--turns",
+            "1",
+            "--judge-model",
+            "m",
+            "-co",
+            "my_runs",
+        ]
+        with patch("sys.argv", ["run_pipeline.py"] + test_args):
+            args = parse_arguments()
+            assert args.conversation_output == "my_runs"
+
+    def test_parse_short_jo_is_judge_output(self):
+        """-jo is shorthand for --judge-output."""
+        from run_pipeline import parse_arguments
+
+        test_args = [
+            "--user-agent",
+            "m",
+            "--provider-agent",
+            "m",
+            "--runs",
+            "1",
+            "--turns",
+            "1",
+            "--judge-model",
+            "m",
+            "-jo",
+            "evals/parent",
+        ]
+        with patch("sys.argv", ["run_pipeline.py"] + test_args):
+            args = parse_arguments()
+            assert args.judge_output == "evals/parent"
 
     def test_parse_arguments_with_extra_params(self):
         """Test parsing with extra model parameters."""
@@ -232,8 +277,10 @@ class TestPipelineArgumentParsing:
             "10",
             "--max-personas",
             "5",
-            "--output",
+            "--conversation-output",
             "custom_folder",
+            "--judge-output",
+            "/tmp/judge_parent",
             "--run-id",
             "test_run_id",
             "--debug",
@@ -262,7 +309,8 @@ class TestPipelineArgumentParsing:
             assert args.max_total_words == 5000
             assert args.max_concurrent == 10
             assert args.max_personas == 5
-            assert args.output == "custom_folder"
+            assert args.conversation_output == "custom_folder"
+            assert args.judge_output == "/tmp/judge_parent"
             assert args.run_id == "test_run_id"
             assert args.judge_max_concurrent == 5
             assert args.judge_limit == 10
@@ -459,10 +507,37 @@ class TestPipelineNewArguments:
         assert judge_args.rubrics == ["data/rubric.tsv", "data/custom_rubric.tsv"]
         assert len(judge_args.rubrics) == 2
 
-    def test_output_argument_exists(self, pipeline_args):
-        """Test that output (generation parent) exists in pipeline args."""
-        assert hasattr(pipeline_args, "output")
-        assert pipeline_args.output == "output"
+    def test_conversation_and_judge_output_attributes(self, pipeline_args):
+        """conversation-output and judge-output exist on pipeline args."""
+        assert hasattr(pipeline_args, "conversation_output")
+        assert pipeline_args.conversation_output == "output"
+        assert hasattr(pipeline_args, "judge_output")
+        assert pipeline_args.judge_output is None
+
+    def test_parse_conversation_output_and_judge_output(self):
+        """Separate generation parent vs judge batch parent."""
+        from run_pipeline import parse_arguments
+
+        test_args = [
+            "--user-agent",
+            "m",
+            "--provider-agent",
+            "m",
+            "--runs",
+            "1",
+            "--turns",
+            "1",
+            "--judge-model",
+            "m",
+            "--conversation-output",
+            "runs/gen",
+            "--judge-output",
+            "runs/evals",
+        ]
+        with patch("sys.argv", ["run_pipeline.py"] + test_args):
+            args = parse_arguments()
+            assert args.conversation_output == "runs/gen"
+            assert args.judge_output == "runs/evals"
 
     def test_parse_arguments_with_run_id(self):
         """Test parsing arguments with --run-id."""
@@ -536,7 +611,8 @@ class TestPipelineNewArguments:
             # Check defaults
             assert args.run_id is None
             assert args.rubrics == ["data/rubric.tsv"]
-            assert args.output == "output"
+            assert args.conversation_output == "output"
+            assert args.judge_output is None
 
     def test_short_flags_for_extra_params(self):
         """Test that short flags work for extra params arguments."""
@@ -1152,6 +1228,18 @@ class TestPipelineResumeParsing:
 class TestPipelineResumeValidation:
     """resolve_pipeline_resume_paths() path checks."""
 
+    def test_fresh_run_uses_conversation_output(self, tmp_path):
+        from run_pipeline import resolve_pipeline_resume_paths
+
+        gen_parent = tmp_path / "gen_parent"
+        args = argparse.Namespace(
+            resume_generate=False,
+            resume_judge=False,
+            conversation_output=str(gen_parent),
+        )
+        resolve_pipeline_resume_paths(args)
+        assert args._pipeline_gen_folder == str(gen_parent.resolve())
+
     def test_resume_generate_rejects_non_p_output(self, tmp_path):
         from run_pipeline import resolve_pipeline_resume_paths
 
@@ -1160,7 +1248,7 @@ class TestPipelineResumeValidation:
         args = argparse.Namespace(
             resume_generate=True,
             resume_judge=False,
-            output=str(bad),
+            conversation_output=str(bad),
         )
         with pytest.raises(SystemExit) as exc_info:
             resolve_pipeline_resume_paths(args)
@@ -1173,7 +1261,7 @@ class TestPipelineResumeValidation:
         args = argparse.Namespace(
             resume_generate=True,
             resume_judge=False,
-            output=str(missing),
+            conversation_output=str(missing),
         )
         with pytest.raises(SystemExit) as exc_info:
             resolve_pipeline_resume_paths(args)
@@ -1187,7 +1275,7 @@ class TestPipelineResumeValidation:
         args = argparse.Namespace(
             resume_generate=True,
             resume_judge=False,
-            output=str(run_dir),
+            conversation_output=str(run_dir),
         )
         resolve_pipeline_resume_paths(args)
 
@@ -1202,7 +1290,7 @@ class TestPipelineResumeValidation:
         args = argparse.Namespace(
             resume_generate=False,
             resume_judge=True,
-            output=str(missing),
+            judge_output=str(missing),
         )
         with pytest.raises(SystemExit) as exc_info:
             resolve_pipeline_resume_paths(args)
@@ -1218,7 +1306,7 @@ class TestPipelineResumeValidation:
         args = argparse.Namespace(
             resume_generate=False,
             resume_judge=True,
-            output=str(parent),
+            judge_output=str(parent),
         )
         with pytest.raises(SystemExit) as exc_info:
             resolve_pipeline_resume_paths(args)
@@ -1236,7 +1324,7 @@ class TestPipelineResumeValidation:
         args = argparse.Namespace(
             resume_generate=False,
             resume_judge=True,
-            output=str(wrong),
+            judge_output=str(wrong),
         )
         with pytest.raises(SystemExit) as exc_info:
             resolve_pipeline_resume_paths(args)
@@ -1254,9 +1342,21 @@ class TestPipelineResumeValidation:
         args = argparse.Namespace(
             resume_generate=False,
             resume_judge=True,
-            output=str(eval_dir),
+            judge_output=str(eval_dir),
         )
         resolve_pipeline_resume_paths(args)
+
+    def test_resume_judge_requires_judge_output(self):
+        from run_pipeline import resolve_pipeline_resume_paths
+
+        args = argparse.Namespace(
+            resume_generate=False,
+            resume_judge=True,
+            judge_output=None,
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            resolve_pipeline_resume_paths(args)
+        assert exc_info.value.code == 2
 
     def test_both_resume_requires_single_j_under_evaluations(self, tmp_path):
         from run_pipeline import resolve_pipeline_resume_paths
@@ -1267,7 +1367,9 @@ class TestPipelineResumeValidation:
         ev.mkdir()
 
         a0 = argparse.Namespace(
-            resume_generate=True, resume_judge=True, output=str(run_dir)
+            resume_generate=True,
+            resume_judge=True,
+            conversation_output=str(run_dir),
         )
         with pytest.raises(SystemExit) as exc_info:
             resolve_pipeline_resume_paths(a0)
@@ -1276,14 +1378,18 @@ class TestPipelineResumeValidation:
         j1 = ev / "j_a__b__20260101_120000"
         j1.mkdir()
         a1 = argparse.Namespace(
-            resume_generate=True, resume_judge=True, output=str(run_dir)
+            resume_generate=True,
+            resume_judge=True,
+            conversation_output=str(run_dir),
         )
         resolve_pipeline_resume_paths(a1)
 
         j2 = ev / "j_c__d__20260101_120001"
         j2.mkdir()
         a2 = argparse.Namespace(
-            resume_generate=True, resume_judge=True, output=str(run_dir)
+            resume_generate=True,
+            resume_judge=True,
+            conversation_output=str(run_dir),
         )
         with pytest.raises(SystemExit) as exc_info:
             resolve_pipeline_resume_paths(a2)
@@ -1360,7 +1466,7 @@ class TestPipelineResumeWiring:
 
         argv = valid_pipeline_args + [
             "--resume-generate",
-            "-o",
+            "--conversation-output",
             str(run_dir),
             "--skip-risk-analysis",
         ]
@@ -1406,7 +1512,7 @@ class TestPipelineResumeWiring:
 
         argv = valid_pipeline_args + [
             "--resume-judge",
-            "-o",
+            "--judge-output",
             str(eval_folder),
             "--skip-risk-analysis",
         ]
@@ -1453,7 +1559,7 @@ class TestPipelineResumeWiring:
         argv = valid_pipeline_args + [
             "--resume-generate",
             "--resume-judge",
-            "-o",
+            "--conversation-output",
             str(run_dir),
             "--skip-risk-analysis",
         ]

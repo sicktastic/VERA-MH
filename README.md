@@ -86,10 +86,10 @@ The pipeline script:
 - Automatically runs `judge/score.py` on the evaluation results
 - Displays a summary with all output locations
 
-Resume (optional, independent flags; **`--output` means different things**):
-- **`--resume-generate`** — Set **`--output`** to the existing **`p_*`** generation run folder (same idea as `generate.py --resume --output`).
-- **`--resume-judge`** — Set **`--output`** to the existing **`j_*`** folder (full path under `.../evaluations/j_*`).
-- **Both flags** — Set **`--output`** to that **`p_*`** folder; there must be **exactly one** `j_*` under `p_*/evaluations/` so the pipeline knows which evaluation run to resume (otherwise remove or rename extra `j_*` folders, or resume steps separately with `judge.py`).
+Resume (optional, independent flags):
+- **`--resume-generate`** — Set **`--conversation-output` / `-co`** to the existing **`p_*`** generation run folder (same idea as `generate.py --resume --output`).
+- **`--resume-judge`** — Set **`--judge-output` / `-jo`** to the existing **`j_*`** folder (full path under `.../evaluations/j_*`).
+- **Both flags** — Set **`--conversation-output` / `-co`** to that **`p_*`** folder; there must be **exactly one** `j_*` under `p_*/evaluations/` so the pipeline knows which evaluation run to resume (otherwise remove or rename extra `j_*` folders, or resume steps separately with `judge.py`).
 
 For help and all available options:
 ```bash

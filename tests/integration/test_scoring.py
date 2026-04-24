@@ -304,7 +304,7 @@ class TestVERAMHPipeline:
             f"{judge_model_name}:{instances}",
             "--max-personas",
             "1",  # Limit to 1 persona for faster tests
-            "--output",
+            "--conversation-output",
             output_dir,
             "--user-agent-extra-params",
             f"temperature={config['TEMP_USER']}",
@@ -727,7 +727,7 @@ class TestVERAMHPipeline:
             f"{TEST_CONFIG['JUDGE_MODEL']}:{TEST_CONFIG['JUDGE_INSTANCES']}",
             "--max-personas",
             "1",  # Use only the first persona (Omar)
-            "--output",
+            "--conversation-output",
             f"pipeline_test_{timestamp}",
             "--user-agent-extra-params",
             f"temperature={TEST_CONFIG['TEMP_USER']}",
@@ -910,7 +910,7 @@ class TestVERAMHPipeline:
             f"{TEST_CONFIG['JUDGE_MODEL']}:{TEST_CONFIG['JUDGE_INSTANCES']}",
             "--max-personas",
             "1",  # Use only the first persona (Omar)
-            "--output",
+            "--conversation-output",
             f"pipeline_comparison_{timestamp}",
             "--user-agent-extra-params",
             f"temperature={TEST_CONFIG['TEMP_USER']}",
