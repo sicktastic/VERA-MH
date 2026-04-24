@@ -118,7 +118,7 @@ By default, generation folders go under `output/`; the pooled `j_pooled__...` fo
 | `VERA_MAX_PERSONAS` | Passed through as `--max-personas` (smoke tests) |
 | `VERA_POOL_OUTPUT` | Parent directory for the new `j_pooled__...` folder (default: same as `VERA_OUTPUT_PARENT`) |
 | `VERA_POOL_SKIP_RISK` | If set, skip pooled risk-level analysis |
-| `VERA_USER_GPT`, `VERA_USER_CLAUDE`, `VERA_JUDGE_GPT`, `VERA_JUDGE_CLAUDE` | Override default model ids |
+| `VERA_USER_A`, `VERA_USER_B`, `VERA_JUDGE_A`, `VERA_JUDGE_B` | Override default model ids (first/second suite and judge order) |
 
 Arguments after `<provider-agent-model>` are forwarded to `run_pipeline.py` (for example `--max-concurrent 10`).
 

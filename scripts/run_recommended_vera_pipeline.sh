@@ -23,10 +23,10 @@
 #
 # Optional environment (override defaults without editing this file):
 #   VERA_OUTPUT_PARENT     Where new p_* run folders go (default: output)
-#   VERA_USER_GPT        User agent for the first suite (default: gpt-5.2)
-#   VERA_USER_CLAUDE     User agent for the second suite (default: claude-opus-4-5-20251101)
-#   VERA_JUDGE_GPT       First judge model (default: gpt-4o)
-#   VERA_JUDGE_CLAUDE    Second judge model (default: claude-sonnet-4-5-20250929)
+#   VERA_USER_A          User agent for the first suite (default: gpt-5.2)
+#   VERA_USER_B          User agent for the second suite (default: claude-opus-4-5-20251101)
+#   VERA_JUDGE_A         First judge model (default: gpt-4o)
+#   VERA_JUDGE_B         Second judge model (default: claude-sonnet-4-5-20250929)
 #   VERA_MAX_CONCURRENT  Forwarded as --max-concurrent (default: 10)
 #   VERA_MAX_PERSONAS    Forwarded as --max-personas (default: 100)
 #   VERA_POOL_OUTPUT     Parent dir for pooled j_pooled__* output (default: same as VERA_OUTPUT_PARENT)
@@ -52,10 +52,10 @@ PROVIDER_AGENT="$1"
 shift
 
 OUTPUT_PARENT="${VERA_OUTPUT_PARENT:-output}"
-USER_GPT="${VERA_USER_GPT:-gpt-5.2}"
-USER_CLAUDE="${VERA_USER_CLAUDE:-claude-opus-4-5-20251101}"
-JUDGE_GPT="${VERA_JUDGE_GPT:-gpt-4o}"
-JUDGE_CLAUDE="${VERA_JUDGE_CLAUDE:-claude-sonnet-4-5-20250929}"
+USER_A="${VERA_USER_A:-gpt-5.2}"
+USER_B="${VERA_USER_B:-claude-opus-4-5-20251101}"
+JUDGE_A="${VERA_JUDGE_A:-gpt-4o}"
+JUDGE_B="${VERA_JUDGE_B:-claude-sonnet-4-5-20250929}"
 
 POOL_PARENT="${VERA_POOL_OUTPUT:-$OUTPUT_PARENT}"
 
@@ -64,7 +64,7 @@ COMMON_ARGS=(
   --provider-agent "$PROVIDER_AGENT"
   --turns 30
   --runs 1
-  --judge-model "$JUDGE_GPT" "$JUDGE_CLAUDE"
+  --judge-model "$JUDGE_A" "$JUDGE_B"
   --output "$OUTPUT_PARENT"
 )
 
@@ -100,14 +100,14 @@ run_pipeline_capture_eval() {
   printf '%s\n' "$ev"
 }
 
-echo "== VERA recommended pipeline: user $USER_GPT → provider $PROVIDER_AGENT =="
-EVAL_GPT="$(run_pipeline_capture_eval --user-agent "$USER_GPT" "${COMMON_ARGS[@]}" "$@")"
+echo "== VERA recommended pipeline: user $USER_A → provider $PROVIDER_AGENT =="
+EVAL_A="$(run_pipeline_capture_eval --user-agent "$USER_A" "${COMMON_ARGS[@]}" "$@")"
 
 echo ""
-echo "== VERA recommended pipeline: user $USER_CLAUDE → provider $PROVIDER_AGENT =="
-EVAL_CLAUDE="$(run_pipeline_capture_eval --user-agent "$USER_CLAUDE" "${COMMON_ARGS[@]}" "$@")"
+echo "== VERA recommended pipeline: user $USER_B → provider $PROVIDER_AGENT =="
+EVAL_B="$(run_pipeline_capture_eval --user-agent "$USER_B" "${COMMON_ARGS[@]}" "$@")"
 
 echo ""
 echo "== Pooling evaluation scores into $POOL_PARENT =="
 # Merge the two evaluation roots into one j_pooled__* folder under POOL_PARENT.
-python3 "$SCRIPT_DIR/pool_vera_scores.py" "${POOL_ARGS[@]}" "$EVAL_GPT" "$EVAL_CLAUDE"
+python3 "$SCRIPT_DIR/pool_vera_scores.py" "${POOL_ARGS[@]}" "$EVAL_A" "$EVAL_B"
