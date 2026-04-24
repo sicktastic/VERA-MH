@@ -150,7 +150,7 @@ This will generate conversations under `output/<p_* run>/conversations/` by defa
 
 | Short | Full | Description |
 |-------|------|-------------|
-| `-f` | `--folder` | Folder containing conversation files (e.g., `conversations/p_model__a_model__t6__r1__timestamp`) |
+| `-f` | `--folder` | Generation run folder or folder of `.txt` transcripts (e.g. `output/p_model__a_model__t6__r1__timestamp` with `conversations/` inside, or a flat legacy folder of `.txt` files) |
 | `-c` | `--conversation` | Path to a single conversation file to judge (mutually exclusive with `--folder`) |
 | `-j` | `--judge-model` | Model(s) to use for judging (required). Format: `model` or `model:count` for multiple instances. Can specify multiple: `--judge-model model1 model2:3`. Examples: `claude-sonnet-4-5-20250929`, `claude-sonnet-4-5-20250929:3`, `claude-sonnet-4-5-20250929:2 gpt-4o:1` |
 | `-jep` | `--judge-model-extra-params` | Extra parameters for the judge model (optional). Examples: `temperature=0.7,max_tokens=1000`. Default: `temperature=0` (unless overridden) |
@@ -240,10 +240,10 @@ python generate.py -u gpt-4o -uep temperature=1,max_tokens=2000 -p gpt-4o -pep t
 **Judge with custom parameters:**
 ```bash
 # Use lower temperature for more consistent evaluation
-python judge.py -f conversations/my_experiment -j claude-sonnet-4-5-20250929 -jep temperature=0.3
+python judge.py -f output/my_p_run -j claude-sonnet-4-5-20250929 -jep temperature=0.3
 
 # Multiple parameters
-python judge.py -f conversations/my_experiment -j gpt-4o -jep temperature=0.5,max_tokens=1500
+python judge.py -f output/my_p_run -j gpt-4o -jep temperature=0.5,max_tokens=1500
 ```
 
 **Note:** Extra parameters are automatically included in the output folder names, making it easy to track experiments:
@@ -253,13 +253,13 @@ python judge.py -f conversations/my_experiment -j gpt-4o -jep temperature=0.5,ma
 **Multiple judge models**: You can use multiple different judge models and/or multiple instances:
 ```bash
 # Multiple different models
-python judge.py -f conversations/{YOUR_FOLDER} -j gpt-4o claude-sonnet-4-20250514
+python judge.py -f output/{YOUR_P_RUN} -j gpt-4o claude-sonnet-4-20250514
 
 # Multiple instances of the same model (for reliability testing)
-python judge.py -f conversations/{YOUR_FOLDER} -j gpt-4o:3
+python judge.py -f output/{YOUR_P_RUN} -j gpt-4o:3
 
 # Combine both: different models with multiple instances
-python judge.py -f conversations/{YOUR_FOLDER} -j gpt-4o:2 claude-sonnet-4-20250514:3
+python judge.py -f output/{YOUR_P_RUN} -j gpt-4o:2 claude-sonnet-4-20250514:3
 ```
 
 ## Data Files
@@ -517,14 +517,25 @@ persona_model_config = {
 
 ### Output Organization
 
-Conversations are organized into timestamped folders by default:
+By default, **`generate.py`** uses **`--output`** (default: `output/`) as the **parent** directory. Each run gets one folder named like `p_<user_model>__a_<provider_model>__t<turns>__r<runs>__<YYYYMMDD_HHMMSS>` (hyphens in model ids become underscores in the folder name; see `utils/naming.py`). All artifacts for that generation run live **under that folder**.
 
 ```
-conversations/
-├── p_claude_sonnet_4_20250514__a_claude_sonnet_4_20250514_20250120_143022_t5_r3/
-│   ├── abc123_Alex_M_c3s_run1_20250120_143022_123.txt
-│   ├── def456_Chloe_Kim_c3s_run1_20250120_143022_456.txt
+output/
+└── p_claude_sonnet_4_5_20250929__a_claude_sonnet_4_5_20250929__t5__r3__20250120_143022/
+    ├── conversations/
+    │   ├── abc123_Alex_claude-sonnet-4-5-20250929_run1.txt
+    │   └── logs/
+    │       ├── abc123_Alex_claude-sonnet-4-5-20250929_run1.log
+    │       └── def456_Chloe_claude-sonnet-4-5-20250929_run1.log
+    └── evaluations/                    # default parent for batch judge when -f is this run
+        └── j_gpt_4o__.../
+            ├── *.tsv
+            ├── results.csv
+            ├── logs/
+            └── scores/                 # after `judge.score`
 ```
+
+**Legacy flat folders:** If `-f` points at a directory that already has `.txt` transcripts at its **root** (no `conversations/` subfolder), tools still treat that as a valid conversation folder. **New** runs always nest transcripts under **`<p_run>/conversations/`** and per-conversation generation logs under **`<p_run>/conversations/logs/`** (there is no separate top-level `logging/` directory next to `conversations/` for new runs).
 
 ### Logging
 
@@ -535,14 +546,15 @@ Comprehensive logging tracks:
 - Performance metrics (duration, turn count)
 - Error handling and debugging information
 
-Conversation logs are organized into timestamped folders by default:
+**Generation:** one `.log` per conversation in **`<p_run>/conversations/logs/`**, alongside the matching `.txt` in **`conversations/`**. **Batch judging:** per-task judge LLM logs live under **`<j_run>/logs/`** inside the `j_*` evaluation folder.
 
-```
-logging/
-├── p_claude_sonnet_4_20250514__a_claude_sonnet_4_20250514_t5_r3_20250120_143022/
-│   ├── abc123_Alex_M_c3s_run1.log
-│   └── def456_Chloe_Kim_c3s_run1.log
-```
+### `output/adhoc`
+
+**Why:** One-off outputs that are **not** part of a normal `p_*` generation run still need a default place under the repo’s single ignored **`output/`** tree so they stay out of version control and do not clutter the root.
+
+**When it is used:**
+- **`judge.py --conversation` / `-c`** (judge a single transcript file): if you omit **`-o` / `--output`**, the CLI creates a run folder under **`output/adhoc/single_<timestamp>__<conversation_stem>/`** (TSVs, `logs/`, etc.). Pass **`-o <parent>`** to use a different parent than `output/adhoc`.
+- **Unscoped `LLMJudge`:** constructing a judge **without** an explicit log path (rare outside tests or programmatic use) writes logs to **`output/adhoc/judge_unscoped/`** with a unique filename so parallel sessions do not overwrite each other.
 
 # Development with Agents
 This project has multiple instructions/insights for agents to utilize as helpful context in assisting development.
