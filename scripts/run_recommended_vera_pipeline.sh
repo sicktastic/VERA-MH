@@ -59,13 +59,14 @@ JUDGE_B="${VERA_JUDGE_B:-claude-sonnet-4-5-20250929}"
 
 POOL_PARENT="${VERA_POOL_OUTPUT:-$OUTPUT_PARENT}"
 
-# Shared run_pipeline.py flags: provider, conversation shape, dual judges, output root.
+# Shared run_pipeline.py flags: provider, conversation shape, dual judges,
+# parent for new p_* runs (--conversation-output / -co → generate.py --output).
 COMMON_ARGS=(
   --provider-agent "$PROVIDER_AGENT"
   --turns 30
   --runs 1
   --judge-model "$JUDGE_A" "$JUDGE_B"
-  --output "$OUTPUT_PARENT"
+  --conversation-output "$OUTPUT_PARENT"
 )
 
 # Throttling and persona cap (defaults here; override with VERA_* env vars).
