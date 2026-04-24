@@ -34,6 +34,26 @@ class TestResolveConversationInput:
         assert gen == str(run)
         assert base == run.name
 
+    def test_empty_nested_conversations_subdir_no_double_path(self, tmp_path):
+        """Empty .../conversations/ still resolves to itself and lifts p_* run id."""
+        run = tmp_path / "p_gpt_4o_mini__a_gpt_4o_mini__t6__r1__20260424_105639"
+        nested = run / "conversations"
+        nested.mkdir(parents=True)
+
+        td, gen, base = resolve_conversation_input(str(nested))
+        assert td == str(nested)
+        assert gen == str(run)
+        assert base == run.name
+
+    def test_empty_conversations_under_non_generation_parent(self, tmp_path):
+        nested = tmp_path / "adhoc" / "conversations"
+        nested.mkdir(parents=True)
+
+        td, gen, base = resolve_conversation_input(str(nested))
+        assert td == str(nested)
+        assert gen is None
+        assert base == "conversations"
+
     def test_conversations_under_non_generation_parent_is_legacy(self, tmp_path):
         """A non-p_* parent keeps legacy gen_run=None (basename conversations)."""
         nested = tmp_path / "my_batch" / "conversations"
