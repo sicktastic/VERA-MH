@@ -74,7 +74,6 @@ async def _evaluate_single_conversation_with_judge(
     """
     conversation_filename = conversation.metadata.get("filename", "unknown.txt")
     log_file = build_judge_task_log_path(
-        "",
         conversation_filename,
         judge_model,
         judge_instance,

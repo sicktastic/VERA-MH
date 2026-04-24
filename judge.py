@@ -177,10 +177,8 @@ async def main(args) -> Optional[str]:
         if isinstance(metadata, dict):
             conv_filename = metadata.get("filename", conv_filename)
         log_file = build_judge_task_log_path(
-            "",
             conv_filename,
             first_model,
-            None,
             output_folder=out_run,
         )
 
