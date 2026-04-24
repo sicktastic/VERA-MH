@@ -11,6 +11,7 @@ from typing import AbstractSet, Any, Dict, List, Optional, Tuple
 
 from llm_clients import LLMFactory
 from llm_clients.llm_interface import LLMGenerationFailed, Role
+from utils.conversation_layout import resolve_conversation_input
 from utils.logging_utils import (
     cleanup_logger,
     log_conversation_end,
@@ -59,20 +60,9 @@ class ConversationRunner:
         self.persona_speaks_first = persona_speaks_first
         self.resume = resume
 
-        nested = os.path.join(folder_name, "conversations")
-        legacy_flat_txts = False
-        if os.path.isdir(folder_name):
-            has_nested = os.path.isdir(nested)
-            has_root_txt = any(
-                name.endswith(".txt") for name in os.listdir(folder_name)
-            )
-            legacy_flat_txts = has_root_txt and not has_nested
-        if legacy_flat_txts:
-            self.transcripts_dir = folder_name
-            self.logs_dir = os.path.join(folder_name, "logs")
-        else:
-            self.transcripts_dir = nested
-            self.logs_dir = os.path.join(nested, "logs")
+        transcripts_dir, _, _ = resolve_conversation_input(folder_name)
+        self.transcripts_dir = transcripts_dir
+        self.logs_dir = os.path.join(transcripts_dir, "logs")
 
     @staticmethod
     def _resolve_persona_safe_from_stem(

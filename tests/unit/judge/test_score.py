@@ -360,7 +360,7 @@ def test_score_results_saves_json(tmp_path):
     df.to_csv(csv_path, index=False)
 
     # Act
-    score_results(str(csv_path), str(json_path))
+    score_results(str(csv_path), output_path=str(json_path))
 
     # Assert
     assert json_path.exists()

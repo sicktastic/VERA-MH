@@ -1,11 +1,12 @@
 """Unit tests for judge.py CLI and main entrypoint."""
 
 import importlib.util
-import os
 from pathlib import Path
 from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
+
+from utils.conversation_layout import resolve_conversation_input
 
 # Load judge.py script (project root) so we can test get_parser and main
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -204,9 +205,8 @@ class TestJudgeMain:
             result = await main(args)
 
             RubricConfig.load.assert_called_once_with(rubric_folder="data")
-            load_convos.assert_called_once_with(
-                os.path.abspath("conversations/run1"), limit=10
-            )
+            expected_dir, _, _ = resolve_conversation_input("conversations/run1")
+            load_convos.assert_called_once_with(expected_dir, limit=10)
             judge_convos.assert_awaited_once()
             assert judge_convos.await_args is not None
             call_kw = judge_convos.await_args[1]

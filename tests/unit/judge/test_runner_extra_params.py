@@ -278,10 +278,10 @@ class TestJudgeTaskLogPath:
         expected_stem = Path(tsv_name).stem
 
         log_path = build_judge_task_log_path(
-            "j_run__convfolder",
             conv,
             model,
             3,
+            run_key="j_run__convfolder",
             logs_root=str(tmp_path),
         )
 
@@ -298,7 +298,6 @@ class TestJudgeTaskLogPath:
         expected_stem = Path(tsv_name).stem
 
         log_path = build_judge_task_log_path(
-            "",
             conv,
             model,
             3,
@@ -306,3 +305,13 @@ class TestJudgeTaskLogPath:
         )
 
         assert log_path == str(eval_dir / "logs" / f"{expected_stem}.log")
+
+    def test_build_judge_task_log_path_requires_run_key_for_legacy_layout(
+        self, tmp_path: Path
+    ) -> None:
+        with pytest.raises(ValueError, match="run_key"):
+            build_judge_task_log_path(
+                "a.txt",
+                "gpt-4o",
+                logs_root=str(tmp_path),
+            )
