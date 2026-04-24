@@ -1,7 +1,7 @@
 #!/usr/bin/env uv run python
 """
-Pool judge evaluation results from multiple evaluation runs (e.g. 2+ user-agent
-pipelines) into one results.csv, then recompute VERA scores and visualizations.
+Pool judge evaluation results from multiple evaluation runs (e.g. 2+ user-agent separate
+pipelines) into one results.csv, then recompute VERA-MH scores and visualizations.
 
 Typical layout for each input path:
   output/p_<user>__a_<agent>__t30__r1__<ts>/evaluations/j_<...>/results.csv
@@ -21,8 +21,6 @@ name may fall back to ``unknown`` placeholders because the script cannot infer t
 Also supports extracting the last evaluation directory from a run_pipeline log:
   uv run python scripts/pool_vera_scores.py --extract-from-log /path/to/log.txt
 """
-
-from __future__ import annotations
 
 import argparse
 import json
@@ -96,6 +94,7 @@ def _resolve_eval_input(path: Path) -> Path:
 
 def _generation_folder_for_eval(eval_dir: Path) -> Path | None:
     """
+    Note: Only works if the evaluation folder is nested under the generation run folder.
     Walk from an evaluation folder up to the corresponding generation run folder.
 
     Expected layout: ``.../p_*__/evaluations/j_*`` (nested generation run). If
