@@ -38,7 +38,11 @@ def build_evaluation_run_folder_path(
     timestamp: str,
     conversation_run_basename: str,
 ) -> str:
-    return f"{output_root}/j_{judge_info}_{timestamp}__{conversation_run_basename}"
+    """
+    Build the folder path for a judge evaluation run.
+    """
+    folder_name = f"j_{judge_info}_{timestamp}__{conversation_run_basename}"
+    return str(Path(output_root) / folder_name)
 
 
 def judge_evaluation_tsv_filename(
