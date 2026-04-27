@@ -6,18 +6,39 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, Dict, List, Optional, Protocol, Type, TypeVar
 
 from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R")
-# Retry callback receives
-# (error, current_attempt, max_retries, is_no_retry_error, is_final_attempt)
-# and can return optional metadata to include in retry logging/handling.
-RetryOnErrorCallback = Callable[
-    [BaseException, int, int, bool, bool], Optional[Dict[str, Any]]
-]
+
+
+class RetryOnErrorCallback(Protocol):
+    """Hook invoked by :meth:`LLMInterface._run_with_retry` after a failed attempt.
+
+    Must match the positional contract of ``on_error`` in that method. Return
+    values are merged into ``last_response_metadata`` when non-empty.
+
+    Args:
+        error: The exception from the failed attempt.
+        attempt_number: 1-based index of this attempt (``1 .. max_attempts``).
+        max_attempts: Total tries allowed (``max_llm_retries + 1`` for the first
+            try plus each retry).
+        retryable: ``False`` if the error matched no-retry substrings (call will
+            raise ``LLMGenerationFailed`` without sleeping for another attempt).
+        will_retry: ``True`` only if another attempt will run after backoff;
+            ``False`` on non-retryable errors or on the last failed attempt.
+    """
+
+    def __call__(
+        self,
+        error: BaseException,
+        attempt_number: int,
+        max_attempts: int,
+        retryable: bool,
+        will_retry: bool,
+    ) -> Optional[Dict[str, Any]]: ...
 
 
 class LLMGenerationFailed(Exception):
