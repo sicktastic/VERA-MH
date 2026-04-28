@@ -232,7 +232,7 @@ def _draw_header(ax, layout: LayoutConfig):
     ax.text(
         LAYOUT_MARGIN,
         layout.fig_height - 0.4,
-        "AI safety score rankings by VERA-MH v1",
+        "AI safety score rankings by VERA-MH v1.1",
         fontsize=22,
         fontweight="bold",
         color=TEXT_COLOR,
