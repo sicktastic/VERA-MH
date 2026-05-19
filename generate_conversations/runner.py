@@ -11,6 +11,7 @@ from typing import AbstractSet, Any, Dict, List, Optional, Tuple
 
 from llm_clients import LLMFactory
 from llm_clients.llm_interface import LLMGenerationFailed, Role
+from utils.conversation_layout import resolve_conversation_input
 from utils.logging_utils import (
     cleanup_logger,
     log_conversation_end,
@@ -60,6 +61,12 @@ class ConversationRunner:
         self.persona_speaks_first = persona_speaks_first
         self.session_types = session_types
         self.resume = resume
+
+        # folder_name: p_run root (or legacy flat). .txt and logs go in
+        # transcripts_dir (e.g. p_run/conversations/), not folder_name.
+        transcripts_dir, _, _ = resolve_conversation_input(folder_name)
+        self.transcripts_dir = transcripts_dir
+        self.logs_dir = os.path.join(transcripts_dir, "logs")
 
     @staticmethod
     def _resolve_persona_safe_from_stem(
@@ -117,10 +124,10 @@ class ConversationRunner:
         the persona key.
         """
         out: list[tuple[str, int]] = []
-        if not os.path.isdir(self.folder_name):
+        if not os.path.isdir(self.transcripts_dir):
             return out
 
-        for filename in os.listdir(self.folder_name):
+        for filename in os.listdir(self.transcripts_dir):
             parsed = self._parse_transcript_filename_for_resume(
                 filename, persona_safe_names
             )
@@ -242,7 +249,8 @@ class ConversationRunner:
         Returns:
             Dict[str, Any]: index, llm1_model, llm1_prompt, run_number, turns,
             filenames, log_files, duration, early_termination, conversation, and
-            optional filename/log_file for single-transcript compatibility.
+            optional filename/log_file. filename: merged .txt (judge/resume).
+            filenames: per-session .txt paths when --sessions is set.
         """
         model_name = self.persona_model_config["model"]
         system_prompt = persona_config["prompt"]
@@ -256,7 +264,9 @@ class ConversationRunner:
             f"{tag}_{persona_name}_{model_name}{workflow_part}_run{run_number}"
         )
         os.makedirs(f"{self.folder_name}", exist_ok=True)
-        log_file_path = os.path.join("logging", self.run_id, f"{filename_base}.log")
+        os.makedirs(self.transcripts_dir, exist_ok=True)
+        os.makedirs(self.logs_dir, exist_ok=True)
+        log_file_path = os.path.join(self.logs_dir, f"{filename_base}.log")
 
         logger: Optional[logging.Logger] = None
         persona: Optional[Any] = None
@@ -265,7 +275,7 @@ class ConversationRunner:
         result: Optional[Dict[str, Any]] = None
 
         try:
-            logger = setup_conversation_logger(filename_base, run_id=self.run_id)
+            logger = setup_conversation_logger(filename_base, log_dir=self.logs_dir)
 
             persona = LLMFactory.create_llm(
                 model_name=model_name,
@@ -337,13 +347,14 @@ class ConversationRunner:
                     else self.persona_speaks_first
                 )
 
+                # --sessions: distinct stem per session; else same as filename_base.
                 session_filename_base = (
                     f"{filename_base}_{i}_{session_type}"
                     if self.session_types
                     else filename_base
                 )
                 session_logger = setup_conversation_logger(
-                    session_filename_base, run_id=self.run_id
+                    log_filename=session_filename_base, log_dir=self.logs_dir
                 )
                 session_start = time.time()
 
@@ -372,9 +383,9 @@ class ConversationRunner:
                         "llm1_prompt": persona_name,
                         "run_number": run_number,
                         "turns": len(all_conversations),
-                        "filenames": filenames,
+                        "filenames": filenames,  # partial sessions before failure
                         "log_files": log_files,
-                        "filename": None,
+                        "filename": None,  # no merged transcript written
                         "log_file": log_file_path,
                         "duration": conversation_time,
                         "early_termination": False,
@@ -396,12 +407,15 @@ class ConversationRunner:
                         total_time=session_time,
                     )
 
+                    # Per-session .txt; suffix stem when --sessions.
                     output_filename = f"{session_filename_base}.txt"
-                    simulator.save_conversation(output_filename, self.folder_name)
+                    simulator.save_conversation(output_filename, self.transcripts_dir)
                     all_conversations.extend(conversation)
-                    filenames.append(f"{self.folder_name}/{output_filename}")
+                    filenames.append(
+                        os.path.join(self.transcripts_dir, output_filename)
+                    )
                     log_files.append(
-                        f"logging/{self.run_id}/{session_filename_base}.log"
+                        os.path.join(self.logs_dir, f"{session_filename_base}.log")
                     )
                     cleanup_logger(session_logger)
 
@@ -417,15 +431,24 @@ class ConversationRunner:
                     early_termination=early_termination,
                     total_time=conversation_time,
                 )
+                # Merged .txt (all sessions): canonical for judge.py and --resume.
+                # No _{i}_{session_type} suffix; resume only matches this stem.
+                simulator.save_conversation(
+                    f"{filename_base}.txt", self.transcripts_dir
+                )
+
                 result = {
                     "index": conversation_index,
                     "llm1_model": model_name,
                     "llm1_prompt": persona_name,
                     "run_number": run_number,
+                    # turns: all sessions; filename: merged; filenames: per-session
                     "turns": len(all_conversations),
                     "filenames": filenames,
+                    "filename": os.path.join(
+                        self.transcripts_dir, f"{filename_base}.txt"
+                    ),
                     "log_files": log_files,
-                    "filename": filenames[0] if filenames else None,
                     "log_file": log_file_path,
                     "duration": conversation_time,
                     "early_termination": early_termination,
@@ -554,14 +577,17 @@ class ConversationRunner:
                 "max_concurrent must be None, 0 (no limit), or a positive integer"
             )
 
-        if self.max_concurrent in (None, 0):
+        if total_jobs == 0:
+            print("No conversation jobs to run (queue is empty).")
+            num_workers = 0
+        elif self.max_concurrent in (None, 0):
             num_workers = total_jobs
             print(f"Running {total_jobs} conversations concurrently (no limit)")
         else:
-            num_workers = self.max_concurrent
+            num_workers = min(self.max_concurrent, total_jobs)
             print(
                 f"Running {total_jobs} conversations with max concurrency: "
-                f"{self.max_concurrent}"
+                f"{self.max_concurrent} ({num_workers} workers)"
             )
 
         results: List[Dict[str, Any]] = []
