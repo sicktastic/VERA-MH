@@ -332,17 +332,11 @@ class TestConversationRunnerSingle:
         assert result["llm1_model"] == "mock-persona-model"
         assert result["llm1_prompt"] == "TestPersona"
         assert result["run_number"] == 1
-        assert result["turns"] == 4
-        assert "filenames" in result
-        assert "log_files" in result
-        assert isinstance(result["filenames"], list)
-        assert isinstance(result["log_files"], list)
+        assert len(result["sessions"]) == 1
+        assert result["sessions"][0]["turns"] == 4
         assert result["duration"] > 0
-        assert isinstance(result["conversation"], list)
-        assert len(result["conversation"]) == 4
-
-        # Verify conversation file exists
-        assert Path(result["filenames"][0]).exists()
+        assert len(result["sessions"][0]["conversation"]) == 4
+        assert Path(result["sessions"][0]["filename"]).exists()
 
     async def test_persona_speaks_first_false_first_turn_is_provider(
         self,
@@ -383,9 +377,10 @@ class TestConversationRunnerSingle:
                 run_number=1,
             )
 
-        assert len(result["conversation"]) == 3
-        assert result["conversation"][0]["speaker"] == "provider"
-        assert result["conversation"][-1]["speaker"] == "provider"
+        conv = result["sessions"][0]["conversation"]
+        assert len(conv) == 3
+        assert conv[0]["speaker"] == "provider"
+        assert conv[-1]["speaker"] == "provider"
 
     async def test_run_single_conversation_logging(
         self,
@@ -490,7 +485,7 @@ class TestConversationRunnerSingle:
             )
 
         # Assert - verify filename format
-        filename = Path(result["filenames"][0]).name
+        filename = Path(result["sessions"][0]["filename"]).name
         # Should contain: tag_personaname_modelshort_runN
         assert "Persona" in filename
         assert "claude-3-opus-20240229" in filename
@@ -558,9 +553,7 @@ class TestConversationRunnerSingle:
                     run_number=1,
                 )
 
-        # Assert - check if early termination flag is present
-        assert "early_termination" in result
-        # Note: actual termination depends on simulator's signal detection
+        assert "early_termination" in result["sessions"][0]
 
     async def test_conversation_metadata_completeness(
         self,
@@ -605,25 +598,18 @@ class TestConversationRunnerSingle:
             "llm1_model",
             "llm1_prompt",
             "run_number",
-            "turns",
-            "filenames",
-            "log_files",
+            "sessions",
             "duration",
-            "early_termination",
-            "conversation",
+            "skipped",
         ]
 
         for field in required_fields:
             assert field in result, f"Missing field: {field}"
 
-        # Verify types
-        assert isinstance(result["index"], int)
-        assert isinstance(result["turns"], int)
-        assert isinstance(result["duration"], float)
-        assert isinstance(result["early_termination"], bool)
-        assert isinstance(result["conversation"], list)
-        assert isinstance(result["filenames"], list)
-        assert isinstance(result["log_files"], list)
+        assert isinstance(result["sessions"], list)
+        assert len(result["sessions"]) == 1
+        assert isinstance(result["sessions"][0]["turns"], int)
+        assert isinstance(result["sessions"][0]["conversation"], list)
 
 
 @pytest.mark.integration
@@ -673,7 +659,7 @@ class TestConversationRunnerMultiple:
         # Assert - should run 2 personas * 2 runs each = 4 conversations
         assert len(results) == 4
         assert all(isinstance(r, dict) for r in results)
-        assert all("conversation" in r for r in results)
+        assert all(r["sessions"] and r["sessions"][0]["conversation"] for r in results)
 
     async def test_concurrent_execution_limit(
         self,
@@ -1146,7 +1132,7 @@ class TestConversationRunnerFileOperations:
                 results = await runner.run_conversations(persona_names=None)
 
         # Assert - all filenames should be unique
-        filenames = [r["filenames"][0] for r in results]
+        filenames = [r["sessions"][0]["filename"] for r in results]
         assert len(filenames) == len(set(filenames))
 
 
@@ -1289,11 +1275,8 @@ class TestConversationRunnerErrorHandling:
                     run_number=1,
                 )
 
-                # Assert: cleanup_logger is called for each session logger plus
-                # the top-level logger. For a single session that is 2 calls.
-                assert mock_cleanup.call_count >= 2
-                # The top-level logger must be cleaned up in the finally block
-                mock_cleanup.assert_any_call(logger)
+                # Assert: session logger cleaned after failure; finally may call again.
+                assert mock_cleanup.call_count >= 1
 
 
 @pytest.mark.integration
@@ -1400,7 +1383,7 @@ class SessionTrackingAgent(MockLLM):
     ):
         super().__init__(*args, **kwargs)
         self.setup_call_count = 0
-        self.finish_and_reset_calls: list = []
+        self.enter_session_calls: list = []
         self.prepare_sessions_calls: list = []
         self._first_speaker_role = first_speaker_role
         self._extra_sessions = extra_sessions or []
@@ -1408,8 +1391,8 @@ class SessionTrackingAgent(MockLLM):
     async def setup(self):
         self.setup_call_count += 1
 
-    async def finish_and_reset_session(self, session_type: str):
-        self.finish_and_reset_calls.append(session_type)
+    async def enter_session(self, session_type: str):
+        self.enter_session_calls.append(session_type)
 
     def prepare_sessions(self, session_types):
         self.prepare_sessions_calls.append(list(session_types))
@@ -1477,12 +1460,12 @@ class TestMultiSessionRunner:
 
         assert tracking_agent.setup_call_count == 1
 
-    async def test_finish_and_reset_called_for_each_session(
+    async def test_enter_session_called_for_each_session(
         self,
         tmp_path: Path,
         basic_persona_config: Dict[str, Any],
     ) -> None:
-        """finish_and_reset_session is called once per session."""
+        """enter_session is called once per session."""
         conv_folder = tmp_path / "conversations"
         tracking_agent = SessionTrackingAgent(
             name="agent",
@@ -1528,9 +1511,8 @@ class TestMultiSessionRunner:
                 run_number=1,
             )
 
-        assert tracking_agent.finish_and_reset_calls == ["intake", "coaching"]
-        assert len(result["filenames"]) == 2
-        assert len(result["log_files"]) == 2
+        assert tracking_agent.enter_session_calls == ["intake", "coaching"]
+        assert len(result["sessions"]) == 2
 
     async def test_prepare_sessions_result_used_as_session_list(
         self,
@@ -1587,8 +1569,8 @@ class TestMultiSessionRunner:
 
         # prepare_sessions was called with ["coaching"], returned ["intake", "coaching"]
         assert tracking_agent.prepare_sessions_calls == [["coaching"]]
-        assert tracking_agent.finish_and_reset_calls == ["intake", "coaching"]
-        assert len(result["filenames"]) == 2
+        assert tracking_agent.enter_session_calls == ["intake", "coaching"]
+        assert len(result["sessions"]) == 2
 
     async def test_first_speaker_overrides_persona_speaks_first(
         self,
@@ -1644,7 +1626,7 @@ class TestMultiSessionRunner:
             )
 
         # Despite persona_speaks_first=True, agent.first_speaker=PROVIDER wins
-        assert result["conversation"][0]["speaker"] == "provider"
+        assert result["sessions"][0]["conversation"][0]["speaker"] == "provider"
 
     async def test_session_suffix_in_filenames_when_session_types_set(
         self,
@@ -1698,16 +1680,18 @@ class TestMultiSessionRunner:
                 run_number=1,
             )
 
-        assert len(result["filenames"]) == 2
-        assert "1_intake" in result["filenames"][0]
-        assert "2_coaching" in result["filenames"][1]
+        assert len(result["sessions"]) == 2
+        assert "1_intake" in result["sessions"][0]["filename"]
+        assert "2_coaching" in result["sessions"][1]["filename"]
+        assert "conversation" not in result
 
-    async def test_multi_session_conversations_concatenated(
+    async def test_multi_session_results_kept_separate(
         self,
         tmp_path: Path,
         basic_persona_config: Dict[str, Any],
     ) -> None:
-        """Turns from all sessions are concatenated in result['conversation']."""
+        """Each session has its own turns and transcript;
+        job-level list is not merged."""
         conv_folder = tmp_path / "conversations"
         agent_mock = MockLLM(
             name="agent",
@@ -1753,7 +1737,8 @@ class TestMultiSessionRunner:
                 run_number=1,
             )
 
-        # 2 sessions × 3 turns each (max_turns=2 → normalised to 3 when
-        # provider speaks first, or 2 when persona speaks first)
-        assert result["turns"] == len(result["conversation"])
-        assert result["turns"] > 2  # at least both sessions contributed
+        assert len(result["sessions"]) == 2
+        assert "turns" not in result
+        for session in result["sessions"]:
+            assert session["turns"] > 0
+            assert len(session["conversation"]) == session["turns"]

@@ -145,6 +145,35 @@ class ConversationRunner:
         """Return True when a transcript exists for this exact persona/run."""
         return (persona_safe, run_number) in existing_keys
 
+    @staticmethod
+    def _job_result(
+        *,
+        index: int,
+        llm1_model: str,
+        llm1_prompt: str,
+        run_number: int,
+        sessions: List[Dict[str, Any]],
+        duration: float,
+        skipped: bool,
+        error: Optional[str] = None,
+        skip_reason: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Persona/run wrapper; each session is a separate entry in ``sessions``."""
+        out: Dict[str, Any] = {
+            "index": index,
+            "llm1_model": llm1_model,
+            "llm1_prompt": llm1_prompt,
+            "run_number": run_number,
+            "sessions": sessions,
+            "duration": duration,
+            "skipped": skipped,
+        }
+        if error is not None:
+            out["error"] = error
+        if skip_reason is not None:
+            out["skip_reason"] = skip_reason
+        return out
+
     def _create_conversation_jobs(
         self, persona_names: Optional[List[str]] = None
     ) -> List[Tuple[dict, int, int, int]]:
@@ -199,24 +228,20 @@ class ConversationRunner:
             except Exception as exc:
                 # Don't let one failed job cancel all workers.
                 # Keep result schema stable.
-                result = {
-                    "index": job[2] if len(job) > 2 else -1,
-                    "llm1_model": self.persona_model_config.get("model", "unknown"),
-                    "llm1_prompt": (
+                result = self._job_result(
+                    index=job[2] if len(job) > 2 else -1,
+                    llm1_model=self.persona_model_config.get("model", "unknown"),
+                    llm1_prompt=(
                         job[0].get("name", "Unknown")
                         if isinstance(job[0], dict)
                         else "Unknown"
                     ),
-                    "run_number": job[3] if len(job) > 3 else 0,
-                    "turns": 0,
-                    "filename": None,
-                    "log_file": None,
-                    "duration": 0.0,
-                    "early_termination": False,
-                    "conversation": [],
-                    "skipped": True,
-                    "error": str(exc),
-                }
+                    run_number=job[3] if len(job) > 3 else 0,
+                    sessions=[],
+                    duration=0.0,
+                    skipped=True,
+                    error=str(exc),
+                )
                 print(f"[Worker {worker_id}] Failed job: {result['error']}")
             finally:
                 queue.task_done()
@@ -234,9 +259,9 @@ class ConversationRunner:
         """Run a simulated conversation (persona vs provider LLM),
           across one or more sessions.
 
-        A single session without --sessions is treated as a one-element session list so
-        the same code path handles both cases. The agent's prepare_sessions() hook
-        normalises the list (e.g. prepending INTAKE for ray-backend).
+        Without --sessions the session list has one element; the same loop handles
+        both cases. The provider's ``prepare_sessions()`` may reorder or prepend
+        session types (e.g. intake before coaching).
 
         Args:
             persona_config (dict): Must have "prompt" and "name". Persona LLM
@@ -247,10 +272,10 @@ class ConversationRunner:
             **kwargs: Unused; reserved for future use.
 
         Returns:
-            Dict[str, Any]: index, llm1_model, llm1_prompt, run_number, turns,
-            filenames, log_files, duration, early_termination, conversation, and
-            optional filename/log_file. filename: merged .txt (judge/resume).
-            filenames: per-session .txt paths when --sessions is set.
+            Dict[str, Any]: index, llm1_model, llm1_prompt, run_number, duration,
+            skipped, and ``sessions`` (one dict per session; length 1 without
+            ``--sessions``). Per-session fields: conversation, filename, log_file,
+            turns, early_termination, etc.
         """
         model_name = self.persona_model_config["model"]
         system_prompt = persona_config["prompt"]
@@ -266,7 +291,6 @@ class ConversationRunner:
         os.makedirs(f"{self.folder_name}", exist_ok=True)
         os.makedirs(self.transcripts_dir, exist_ok=True)
         os.makedirs(self.logs_dir, exist_ok=True)
-        log_file_path = os.path.join(self.logs_dir, f"{filename_base}.log")
 
         logger: Optional[logging.Logger] = None
         persona: Optional[Any] = None
@@ -275,8 +299,6 @@ class ConversationRunner:
         result: Optional[Dict[str, Any]] = None
 
         try:
-            logger = setup_conversation_logger(filename_base, log_dir=self.logs_dir)
-
             persona = LLMFactory.create_llm(
                 model_name=model_name,
                 name=f"{model_name} {persona_name}",
@@ -301,30 +323,16 @@ class ConversationRunner:
                 **agent_kwargs,
             )
 
-            log_conversation_start(
-                logger=logger,
-                llm1_model_str=model_name,
-                llm1_prompt=persona_name,
-                llm2_name=agent.name,
-                llm2_model_str=getattr(agent, "model_name", "unknown"),
-                max_turns=max_turns,
-                persona_speaks_first=self.persona_speaks_first,
-                llm1_model=persona,
-                llm2_model=agent,
-            )
-
-            all_conversations: List[Dict[str, Any]] = []
-            filenames: List[str] = []
-            log_files: List[str] = []
-
             await agent.setup()
 
             raw_sessions = self.session_types or [
                 getattr(agent, "_session_type", "default")
             ]
             session_types_prepared = agent.prepare_sessions(raw_sessions)
+            multi_session = len(session_types_prepared) > 1
 
             simulator = ConversationSimulator(persona, agent)
+            sessions: List[Dict[str, Any]] = []
 
             for i, session_type in enumerate(session_types_prepared, 1):
                 if i > 1:
@@ -338,7 +346,7 @@ class ConversationRunner:
                         f"{session_type}"
                     )
 
-                await agent.finish_and_reset_session(session_type)
+                await agent.enter_session(session_type)
 
                 first_speaker = agent.first_speaker
                 psf = (
@@ -347,14 +355,25 @@ class ConversationRunner:
                     else self.persona_speaks_first
                 )
 
-                # --sessions: distinct stem per session; else same as filename_base.
-                session_filename_base = (
+                session_stem = (
                     f"{filename_base}_{i}_{session_type}"
-                    if self.session_types
+                    if multi_session
                     else filename_base
                 )
                 session_logger = setup_conversation_logger(
-                    log_filename=session_filename_base, log_dir=self.logs_dir
+                    log_filename=session_stem, log_dir=self.logs_dir
+                )
+                logger = session_logger
+                log_conversation_start(
+                    logger=session_logger,
+                    llm1_model_str=model_name,
+                    llm1_prompt=persona_name,
+                    llm2_name=agent.name,
+                    llm2_model_str=getattr(agent, "model_name", "unknown"),
+                    max_turns=max_turns,
+                    persona_speaks_first=psf,
+                    llm1_model=persona,
+                    llm2_model=agent,
                 )
                 session_start = time.time()
 
@@ -370,29 +389,40 @@ class ConversationRunner:
                     print(
                         f"Skipped conversation ({persona_name}, run {run_number}): {e}"
                     )
-                    logger.error(
-                        "CONVERSATION FAILED | persona=%s run=%s error=%s",
-                        persona_name,
-                        run_number,
-                        str(e),
-                    )
+                    if logger is not None:
+                        logger.error(
+                            "CONVERSATION FAILED | persona=%s run=%s error=%s",
+                            persona_name,
+                            run_number,
+                            str(e),
+                        )
                     cleanup_logger(session_logger)
-                    result = {
-                        "index": conversation_index,
-                        "llm1_model": model_name,
-                        "llm1_prompt": persona_name,
-                        "run_number": run_number,
-                        "turns": len(all_conversations),
-                        "filenames": filenames,  # partial sessions before failure
-                        "log_files": log_files,
-                        "filename": None,  # no merged transcript written
-                        "log_file": log_file_path,
-                        "duration": conversation_time,
-                        "early_termination": False,
-                        "conversation": all_conversations,
-                        "skipped": True,
-                        "error": str(e),
-                    }
+                    sessions.append(
+                        {
+                            "index": i,
+                            "session_type": session_type,
+                            "turns": 0,
+                            "conversation": [],
+                            "filename": None,
+                            "log_file": os.path.join(
+                                self.logs_dir, f"{session_stem}.log"
+                            ),
+                            "duration": time.time() - session_start,
+                            "early_termination": False,
+                            "skipped": True,
+                            "error": str(e),
+                        }
+                    )
+                    result = self._job_result(
+                        index=conversation_index,
+                        llm1_model=model_name,
+                        llm1_prompt=persona_name,
+                        run_number=run_number,
+                        sessions=sessions,
+                        duration=conversation_time,
+                        skipped=True,
+                        error=str(e),
+                    )
                     break
                 else:
                     self._log_turns(session_logger, conversation)
@@ -407,54 +437,38 @@ class ConversationRunner:
                         total_time=session_time,
                     )
 
-                    # Per-session .txt; suffix stem when --sessions.
-                    output_filename = f"{session_filename_base}.txt"
+                    output_filename = f"{session_stem}.txt"
                     simulator.save_conversation(output_filename, self.transcripts_dir)
-                    all_conversations.extend(conversation)
-                    filenames.append(
-                        os.path.join(self.transcripts_dir, output_filename)
-                    )
-                    log_files.append(
-                        os.path.join(self.logs_dir, f"{session_filename_base}.log")
+                    sessions.append(
+                        {
+                            "index": i,
+                            "session_type": session_type,
+                            "turns": len(conversation),
+                            "conversation": conversation,
+                            "filename": os.path.join(
+                                self.transcripts_dir, output_filename
+                            ),
+                            "log_file": os.path.join(
+                                self.logs_dir, f"{session_stem}.log"
+                            ),
+                            "duration": session_time,
+                            "early_termination": session_early_term,
+                            "skipped": False,
+                        }
                     )
                     cleanup_logger(session_logger)
 
             if result is None:
-                end_time = time.time()
-                conversation_time = end_time - start_time
-                early_termination = any(
-                    t.get("early_termination", False) for t in all_conversations
+                conversation_time = time.time() - start_time
+                result = self._job_result(
+                    index=conversation_index,
+                    llm1_model=model_name,
+                    llm1_prompt=persona_name,
+                    run_number=run_number,
+                    sessions=sessions,
+                    duration=conversation_time,
+                    skipped=False,
                 )
-                log_conversation_end(
-                    logger=logger,
-                    total_turns=len(all_conversations),
-                    early_termination=early_termination,
-                    total_time=conversation_time,
-                )
-                # Merged .txt (all sessions): canonical for judge.py and --resume.
-                # No _{i}_{session_type} suffix; resume only matches this stem.
-                simulator.save_conversation(
-                    f"{filename_base}.txt", self.transcripts_dir
-                )
-
-                result = {
-                    "index": conversation_index,
-                    "llm1_model": model_name,
-                    "llm1_prompt": persona_name,
-                    "run_number": run_number,
-                    # turns: all sessions; filename: merged; filenames: per-session
-                    "turns": len(all_conversations),
-                    "filenames": filenames,
-                    "filename": os.path.join(
-                        self.transcripts_dir, f"{filename_base}.txt"
-                    ),
-                    "log_files": log_files,
-                    "log_file": log_file_path,
-                    "duration": conversation_time,
-                    "early_termination": early_termination,
-                    "conversation": all_conversations,
-                    "skipped": False,
-                }
 
         except Exception as exc:
             end_time = time.time()
@@ -465,23 +479,17 @@ class ConversationRunner:
                     run_number,
                     str(exc),
                 )
-            result = {
-                "index": conversation_index,
-                "llm1_model": model_name,
-                "llm1_prompt": persona_name,
-                "run_number": run_number,
-                "turns": 0,
-                "filenames": [],
-                "log_files": [],
-                "filename": None,
-                "log_file": log_file_path,
-                "duration": end_time - start_time,
-                "early_termination": False,
-                "conversation": [],
-                "skipped": True,
-                "skip_reason": "error",
-                "error": str(exc),
-            }
+            result = self._job_result(
+                index=conversation_index,
+                llm1_model=model_name,
+                llm1_prompt=persona_name,
+                run_number=run_number,
+                sessions=[],
+                duration=end_time - start_time,
+                skipped=True,
+                skip_reason="error",
+                error=str(exc),
+            )
             print(f"Skipped conversation ({persona_name}, run {run_number}): {exc}")
         finally:
             if logger is not None:
@@ -533,21 +541,17 @@ class ConversationRunner:
                 persona_safe = persona_token_for_transcript_stem(persona["Name"])
                 if self._has_existing_transcript(persona_safe, run, existing_keys):
                     skipped_results.append(
-                        {
-                            "index": conversation_index,
-                            "llm1_model": self.persona_model_config["model"],
-                            "llm1_prompt": persona["Name"],
-                            "run_number": run,
-                            "turns": 0,
-                            "filename": None,
-                            "log_file": None,
-                            "duration": 0.0,
-                            "early_termination": False,
-                            "conversation": [],
-                            "skipped": True,
-                            "skip_reason": "existing",
-                            "error": "Transcript already exists in output folder",
-                        }
+                        self._job_result(
+                            index=conversation_index,
+                            llm1_model=self.persona_model_config["model"],
+                            llm1_prompt=persona["Name"],
+                            run_number=run,
+                            sessions=[],
+                            duration=0.0,
+                            skipped=True,
+                            skip_reason="existing",
+                            error="Transcript already exists in output folder",
+                        )
                     )
                     conversation_index += 1
                     continue

@@ -345,10 +345,10 @@ class TestLLMInterface:
 class TestLLMInterfaceHooks:
     """Tests for the extensibility hooks added to LLMInterface."""
 
-    def test_bespoke_termination_signals_default_empty(self):
-        """bespoke_termination_signals returns [] by default."""
+    def test_custom_termination_signals_default_empty(self):
+        """custom_termination_signals returns [] by default."""
         llm = ConcreteLLM("test", Role.PROVIDER)
-        assert llm.bespoke_termination_signals == []
+        assert llm.custom_termination_signals == []
 
     def test_post_process_response_noop(self):
         """_post_process_response is a no-op by default."""
@@ -367,7 +367,7 @@ class TestLLMInterfaceHooks:
 
         class SignalLLM(ConcreteLLM):
             @property
-            def bespoke_termination_signals(self):
+            def custom_termination_signals(self):
                 return ["[END]", "[ERROR]"]
 
         llm = SignalLLM("test", Role.PROVIDER)
@@ -379,7 +379,7 @@ class TestLLMInterfaceHooks:
 
         class SignalLLM(ConcreteLLM):
             @property
-            def bespoke_termination_signals(self):
+            def custom_termination_signals(self):
                 return ["[END]"]
 
         llm = SignalLLM("test", Role.PROVIDER)
@@ -390,7 +390,7 @@ class TestLLMInterfaceHooks:
 
         class SignalLLM(ConcreteLLM):
             @property
-            def bespoke_termination_signals(self):
+            def custom_termination_signals(self):
                 return ["[END]", "[ERROR]"]
 
         llm = SignalLLM("test", Role.PROVIDER)
@@ -403,7 +403,7 @@ class TestLLMInterfaceHooks:
 
         class SignalLLM(ConcreteLLM):
             @property
-            def bespoke_termination_signals(self):
+            def custom_termination_signals(self):
                 return ["[end]"]
 
         llm = SignalLLM("test", Role.PROVIDER)
@@ -428,10 +428,10 @@ class TestLLMInterfaceHooks:
         await llm.setup()  # must not raise
 
     @pytest.mark.asyncio
-    async def test_finish_and_reset_session_is_noop(self):
-        """finish_and_reset_session() completes without error by default."""
+    async def test_enter_session_is_noop(self):
+        """enter_session() completes without error by default."""
         llm = ConcreteLLM("test", Role.PROVIDER)
-        await llm.finish_and_reset_session("intake")  # must not raise
+        await llm.enter_session("intake")  # must not raise
 
     @pytest.mark.asyncio
     async def test_run_with_retry_succeeds_after_transient_failures(self):

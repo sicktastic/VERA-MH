@@ -515,7 +515,7 @@ class TestBespokeTerminationAndPostProcessing:
 
         class SignalAgent(MockLLM):
             @property
-            def bespoke_termination_signals(self):
+            def custom_termination_signals(self):
                 return ["[SESSION_ENDED]"]
 
         persona = MockLLM(name="persona", role=Role.PERSONA, responses=["hello"] * 5)
@@ -536,7 +536,7 @@ class TestBespokeTerminationAndPostProcessing:
 
         class ErrorAgent(MockLLM):
             @property
-            def bespoke_termination_signals(self):
+            def custom_termination_signals(self):
                 return ["[ERROR]"]
 
             def _should_discard_response(self, extracted_signals):
@@ -611,7 +611,7 @@ class TestBespokeTerminationAndPostProcessing:
 
         class SignalStrippingAgent(MockLLM):
             @property
-            def bespoke_termination_signals(self):
+            def custom_termination_signals(self):
                 return ["[SESSION_ENDED]"]
 
             def _post_process_response(self, response: str) -> str:

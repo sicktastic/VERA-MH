@@ -34,8 +34,8 @@ class ConversationSimulator:
         Two termination paths:
         - Global signal (self.termination_signal): only the persona can trigger it,
           checked against the post-processed response.
-        - Bespoke signals: passed in as extracted_signals, detected from the raw
-          response before post-processing removed them.
+        - Custom signals: passed in as extracted_signals, are specific to the LLM
+          client, and detected from the raw response before post-processing.
         """
         # Global signal: persona-only, checked on cleaned response
         if speaker == self.persona and re.search(
@@ -44,7 +44,9 @@ class ConversationSimulator:
             return True
 
         # Bespoke signals extracted from raw response before post-processing
-        if extracted_signals and any([signal in speaker.bespoke_termination_signals for signal in extracted_signals]):
+        if extracted_signals and any(
+            signal in speaker.custom_termination_signals for signal in extracted_signals
+        ):
             return True
 
         return False
@@ -77,7 +79,7 @@ class ConversationSimulator:
             next_speaker = self.persona
 
         debug_print(
-            f"[SIM] Starting conversation: persona_speaks_first={persona_speaks_first}, "
+            f"[SIM] Starting conversation: persona_speaks_first={persona_speaks_first},"
             f"max_turns={max_turns}"
         )
         debug_print(
@@ -100,15 +102,13 @@ class ConversationSimulator:
                 response = await current_speaker.generate_response(
                     conversation_history=history_dicts
                 )
-            
+
             raw_response = response
             extracted_signals = current_speaker._extract_signals(response)
             response = current_speaker._post_process_response(response)
 
             preview = response[:80].replace("\n", " ")
             debug_print(f"[SIM]   → {preview!r}")
-
-            response = current_speaker._post_process_response(response)
 
             total_words += len(response.split())
 
@@ -146,9 +146,11 @@ class ConversationSimulator:
             self.conversation_history.append(turn_obj)
 
             # Check if persona wants to end the conversation
-            if self._should_terminate_conversation(response, current_speaker, extracted_signals):
+            if self._should_terminate_conversation(
+                response, current_speaker, extracted_signals
+            ):
                 if current_speaker._should_discard_response(extracted_signals):
-                    debug_print("[SIM]   provider error — discarding turn and ending conversation")
+                    debug_print("[SIM]   provider error — discarding turn, ending")
                     self.conversation_history.pop()
                 else:
                     debug_print("[SIM]   early termination signal detected")
@@ -162,13 +164,16 @@ class ConversationSimulator:
                 and max_total_words is not None
                 and total_words >= max_total_words
             ):
-                debug_print(f"[SIM]   word limit reached ({total_words}/{max_total_words})")
+                debug_print(
+                    f"[SIM]   word limit reached ({total_words}/{max_total_words})"
+                )
                 break
 
             # Switch speakers for next turn
             current_speaker, next_speaker = next_speaker, current_speaker
             debug_print(
-                f"[SIM]   next speaker → {current_speaker.name} ({current_speaker.role.value})"
+                f"[SIM]   next speaker → {current_speaker.name} "
+                f"({current_speaker.role.value})"
             )
 
         # Return dict format for backward compatibility

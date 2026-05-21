@@ -333,14 +333,15 @@ class LLMInterface(ABC):
         return response
 
     @property
-    def bespoke_termination_signals(self) -> List[str]:
+    def custom_termination_signals(self) -> List[str]:
         """Per-implementation early-termination signals.
 
         Return a list of signal strings. When any signal is found in this
         speaker's response, the conversation ends early.
-        Returns [] by default (no bespoke signals).
-        Override in subclasses to add provider-specific termination detection.
+        Returns [] by default (no custom signals).
+        Override in subclasses to add provider-specific custom termination detection.
         Each signal is only checked against the response of the LLM that declares it.
+        Mostly it is meant to for provider LLM classes to allow for special termination.
         """
         return []
 
@@ -354,19 +355,19 @@ class LLMInterface(ABC):
         return False
 
     def _extract_signals(self, response: str) -> List[str]:
-        """Extract bespoke termination signals present in a raw response.
+        """Extract custom termination signals present in a raw response.
 
         Called by the simulator on the raw response, before _post_process_response
-        strips provider artifacts. Returns the subset of bespoke_termination_signals
+        strips provider artifacts. Returns the subset of custom_termination_signals
         found in the response.
 
         Override in subclasses for custom extraction logic (e.g. structured parsing).
-        The default implementation scans for each entry in bespoke_termination_signals.
+        The default implementation scans for each entry in custom_termination_signals.
         """
         import re
 
         found = []
-        for signal in self.bespoke_termination_signals:
+        for signal in self.custom_termination_signals:
             if re.search(re.escape(signal), response, re.IGNORECASE):
                 found.append(signal)
         return found
@@ -389,8 +390,11 @@ class LLMInterface(ABC):
         """
         return session_types
 
-    async def finish_and_reset_session(self, session_type: str) -> None:
-        """Finish the current session and reset for a new type. No-op by default."""
+    async def enter_session(self, session_type: str) -> None:
+        """Prepare the provider for session_type. If a session is already active,
+        finish it first. Called once at the start of each session iteration
+        (including the first).
+        No-op by default."""
         pass
 
     async def setup(self) -> None:
