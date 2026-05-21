@@ -321,10 +321,18 @@ if __name__ == "__main__":
         default=DEFAULT_START_PROMPT,
     )
 
+    def parse_sessions_arg(s: str) -> List[str]:
+        sessions = [t.strip() for t in s.split(",") if t.strip()]
+        if not sessions:
+            raise argparse.ArgumentTypeError(
+                "--sessions must contain at least one non-empty session name"
+            )
+        return sessions
+
     parser.add_argument(
         "--sessions",
         help=("Comma-separated sequence of session types to run in order "),
-        type=lambda s: [t.strip() for t in s.split(",")],
+        type=parse_sessions_arg,
         default=None,
     )
 
