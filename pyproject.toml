@@ -10,9 +10,8 @@ dependencies = [
     "langchain-google-genai>=1.0.0",
     "langchain-azure-ai>=1.0.0",
     "langchain-ollama>=0.1.0",
-    "python-dotenv>=1.2.2"
+    "python-dotenv>=1.2.2",
     "pydantic>=2.12.5",
-
     "pandas>=2.0.0",
     "matplotlib>=3.10.8",
     "pytest>=7.0.0",
