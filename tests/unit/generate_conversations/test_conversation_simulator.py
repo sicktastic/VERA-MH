@@ -555,6 +555,7 @@ class TestBespokeTerminationAndPostProcessing:
         # Agent's error turn was discarded; only persona's hello remains.
         assert len(history) == 1
         assert history[0]["speaker"] == "persona"
+        assert history[-1]["early_termination"] is True
 
     async def test_raw_response_stored_in_agent_logging(self):
         """raw_response in agent's logging reflects the unstripped text."""

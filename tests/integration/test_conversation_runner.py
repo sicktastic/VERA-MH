@@ -945,6 +945,115 @@ class TestConversationRunnerMultiple:
         assert sum(1 for r in results if r.get("skipped")) == 1
         assert sum(1 for r in results if not r.get("skipped")) == 1
 
+    async def test_resume_mode_skips_multi_session_transcripts(
+        self,
+        tmp_path: Path,
+        basic_persona_config: Dict[str, Any],
+        basic_agent_config: Dict[str, Any],
+        mock_llm_factory,
+    ) -> None:
+        """Resume recognizes *_runN_{i}_{session_type}.txt transcript names."""
+        conv_folder = tmp_path / "conversations"
+        conv_folder.mkdir(parents=True, exist_ok=True)
+        intake = conv_folder / "abc123_Persona1_mock-persona-model_run1_1_intake.txt"
+        coaching = (
+            conv_folder / "def456_Persona1_mock-persona-model_run1_2_coaching.txt"
+        )
+        intake.write_text("user: hi\n\nchatbot: hello\n", encoding="utf-8")
+        coaching.write_text("user: hi\n\nchatbot: hello\n", encoding="utf-8")
+
+        runner = create_test_runner(
+            basic_persona_config,
+            basic_agent_config,
+            "test_run",
+            max_turns=2,
+            runs_per_prompt=1,
+            folder_name=str(conv_folder),
+            resume=True,
+            session_types=["intake", "coaching"],
+        )
+        mock_personas = [{"Name": "Persona1", "prompt": "Prompt 1"}]
+
+        with patch("generate_conversations.runner.load_prompts_from_csv") as mock_load:
+            mock_load.return_value = mock_personas
+            with patch(
+                "generate_conversations.runner.setup_conversation_logger"
+            ) as mock_logger:
+                mock_logger.return_value = MagicMock()
+                results = await runner.run_conversations(persona_names=None)
+
+        assert len(results) == 1
+        assert results[0].get("skipped") is True
+        assert results[0].get("skip_reason") == "existing"
+
+    async def test_resume_mode_runs_remaining_multi_session_only(
+        self,
+        tmp_path: Path,
+        basic_persona_config: Dict[str, Any],
+        mock_llm_factory,
+    ) -> None:
+        """Resume with partial multi-session work runs only missing sessions."""
+        conv_folder = tmp_path / "conversations"
+        conv_folder.mkdir(parents=True, exist_ok=True)
+        intake_path = (
+            conv_folder / "abc123_Persona1_mock-persona-model_run1_1_intake.txt"
+        )
+        intake_path.write_text("user: hi\n\nchatbot: hello\n", encoding="utf-8")
+
+        agent_mock = MockLLM(
+            name="agent",
+            role=Role.PROVIDER,
+            responses=["reply"] * 10,
+            model_name="mock-agent-model",
+        )
+        persona_mock = MockLLM(
+            name="persona",
+            role=Role.PERSONA,
+            responses=["hi"] * 10,
+            model_name="mock-persona-model",
+        )
+
+        runner = ConversationRunner(
+            persona_model_config=basic_persona_config,
+            agent_model_config={"model": "mock-agent-model", "name": "agent"},
+            run_id="test_partial_resume",
+            folder_name=str(conv_folder),
+            max_turns=2,
+            runs_per_prompt=1,
+            resume=True,
+            session_types=["intake", "coaching"],
+        )
+        persona_config = {
+            "model": "mock-persona-model",
+            "prompt": "Test prompt",
+            "name": "Persona1",
+            "run": 1,
+        }
+
+        with (
+            patch(
+                "generate_conversations.runner.LLMFactory.create_llm",
+                side_effect=[persona_mock, agent_mock],
+            ),
+            patch(
+                "generate_conversations.runner.setup_conversation_logger",
+                return_value=MagicMock(),
+            ),
+        ):
+            result = await runner.run_single_conversation(
+                persona_config=persona_config,
+                max_turns=2,
+                conversation_index=1,
+                run_number=1,
+            )
+
+        assert len(result["sessions"]) == 2
+        assert result["sessions"][0]["skipped"] is True
+        assert result["sessions"][0]["skip_reason"] == "existing"
+        assert result["sessions"][0]["filename"] == str(intake_path)
+        assert result["sessions"][1]["skipped"] is False
+        assert result["sessions"][1]["turns"] > 0
+
     async def test_agent_config_not_mutated_across_concurrent_conversations(
         self,
         tmp_path: Path,

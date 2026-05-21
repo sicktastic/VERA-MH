@@ -152,6 +152,8 @@ class ConversationSimulator:
                 if current_speaker._should_discard_response(extracted_signals):
                     debug_print("[SIM]   provider error — discarding turn, ending")
                     self.conversation_history.pop()
+                    if self.conversation_history:
+                        self.conversation_history[-1].early_termination = True
                 else:
                     debug_print("[SIM]   early termination signal detected")
                     self.conversation_history[-1].early_termination = True

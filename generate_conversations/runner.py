@@ -91,10 +91,13 @@ class ConversationRunner:
 
     def _parse_transcript_filename_for_resume(
         self, filename: str, persona_safe_names: AbstractSet[str]
-    ) -> Optional[tuple[str, int]]:
+    ) -> Optional[tuple[str, int, Optional[int], Optional[str]]]:
         """
-        Parse transcript basename `{tag}_{persona_safe}_{model}_run{N}.txt` using known
-        persona_safe names (tag is discarded).
+        Parse transcript basename using known persona_safe names (tag is discarded).
+
+        Supports:
+        - `{tag}_{persona_safe}_{model}_run{N}.txt`
+        - `{tag}_{persona_safe}_{model}_run{N}_{session_index}_{session_type}.txt`
         """
         if not filename.endswith(".txt"):
             return None
@@ -106,24 +109,26 @@ class ConversationRunner:
         if not match:
             return None
         run = int(match.group("run"))
+        session_index = (
+            int(match.group("session_index")) if match.group("session_index") else None
+        )
+        session_type = match.group("session_type")
         stem = suffix[: match.start()]
         persona_safe = self._resolve_persona_safe_from_stem(stem, persona_safe_names)
         if persona_safe is None:
             return None
-        return (persona_safe, run)
+        return (persona_safe, run, session_index, session_type)
 
     def _list_existing_conversations(
         self, persona_safe_names: AbstractSet[str]
-    ) -> list[tuple[str, int]]:
+    ) -> list[tuple[str, int, Optional[int], Optional[str]]]:
         """
-        List (persona_safe, run_number) for each matching transcript file (duplicates
-        possible if several files parse to the same pair).
+        List parsed transcript entries for resume.
 
-        Parses `_runN.txt` first, then resolves persona_safe via longest-prefix match
-        against persona_safe_names so model segments with underscores do not corrupt
-        the persona key.
+        Each entry is (persona_safe, run_number, session_index, session_type).
+        Single-session files use None for the session fields.
         """
-        out: list[tuple[str, int]] = []
+        out: list[tuple[str, int, Optional[int], Optional[str]]] = []
         if not os.path.isdir(self.transcripts_dir):
             return out
 
@@ -136,14 +141,83 @@ class ConversationRunner:
             out.append(parsed)
         return out
 
-    @staticmethod
+    def _build_resume_state(
+        self, existing: list[tuple[str, int, Optional[int], Optional[str]]]
+    ) -> tuple[set[tuple[str, int]], dict[tuple[str, int], set[tuple[int, str]]]]:
+        """Derive single-session keys and per-run completed session sets."""
+        complete_runs: set[tuple[str, int]] = set()
+        sessions_by_run: dict[tuple[str, int], set[tuple[int, str]]] = {}
+
+        for persona_safe, run_number, session_index, session_type in existing:
+            key = (persona_safe, run_number)
+            if session_index is None or session_type is None:
+                complete_runs.add(key)
+                continue
+            sessions_by_run.setdefault(key, set()).add((session_index, session_type))
+
+        return complete_runs, sessions_by_run
+
     def _has_existing_transcript(
+        self,
         persona_safe: str,
         run_number: int,
-        existing_keys: set[tuple[str, int]],
+        complete_runs: set[tuple[str, int]],
+        sessions_by_run: dict[tuple[str, int], set[tuple[int, str]]],
     ) -> bool:
-        """Return True when a transcript exists for this exact persona/run."""
-        return (persona_safe, run_number) in existing_keys
+        """Return True when this persona/run is fully complete for resume."""
+        key = (persona_safe, run_number)
+        if key in complete_runs:
+            return True
+
+        session_types = self.session_types
+        if session_types and len(session_types) > 1:
+            required = {(i, st) for i, st in enumerate(session_types, 1)}
+            found = sessions_by_run.get(key, set())
+            return required.issubset(found)
+
+        return key in sessions_by_run
+
+    def _session_transcript_exists(
+        self,
+        persona_safe: str,
+        run_number: int,
+        session_index: int,
+        session_type: str,
+        sessions_by_run: dict[tuple[str, int], set[tuple[int, str]]],
+        complete_runs: set[tuple[str, int]],
+    ) -> bool:
+        """Return True when a specific multi-session transcript already exists."""
+        key = (persona_safe, run_number)
+        if key in complete_runs:
+            return True
+        return (session_index, session_type) in sessions_by_run.get(key, set())
+
+    def _find_session_transcript_path(
+        self,
+        persona_safe: str,
+        run_number: int,
+        session_index: int,
+        session_type: str,
+        persona_safe_names: AbstractSet[str],
+    ) -> Optional[str]:
+        """Return the path to an existing session transcript, if any."""
+        if not os.path.isdir(self.transcripts_dir):
+            return None
+        for filename in os.listdir(self.transcripts_dir):
+            parsed = self._parse_transcript_filename_for_resume(
+                filename, persona_safe_names
+            )
+            if parsed is None:
+                continue
+            p_safe, run, idx, stype = parsed
+            if (
+                p_safe == persona_safe
+                and run == run_number
+                and idx == session_index
+                and stype == session_type
+            ):
+                return os.path.join(self.transcripts_dir, filename)
+        return None
 
     @staticmethod
     def _job_result(
@@ -331,10 +405,56 @@ class ConversationRunner:
             session_types_prepared = agent.prepare_sessions(raw_sessions)
             multi_session = len(session_types_prepared) > 1
 
+            persona_safe = persona_token_for_transcript_stem(persona_name)
+            complete_runs: set[tuple[str, int]] = set()
+            sessions_by_run: dict[tuple[str, int], set[tuple[int, str]]] = {}
+            if self.resume:
+                existing = self._list_existing_conversations({persona_safe})
+                complete_runs, sessions_by_run = self._build_resume_state(existing)
+
             simulator = ConversationSimulator(persona, agent)
             sessions: List[Dict[str, Any]] = []
 
             for i, session_type in enumerate(session_types_prepared, 1):
+                if (
+                    self.resume
+                    and multi_session
+                    and self._session_transcript_exists(
+                        persona_safe,
+                        run_number,
+                        i,
+                        session_type,
+                        sessions_by_run,
+                        complete_runs,
+                    )
+                ):
+                    existing_path = self._find_session_transcript_path(
+                        persona_safe,
+                        run_number,
+                        i,
+                        session_type,
+                        {persona_safe},
+                    )
+                    print(
+                        f"  Skipping session {i}/{len(session_types_prepared)} "
+                        f"({session_type}): transcript already exists"
+                    )
+                    sessions.append(
+                        {
+                            "index": i,
+                            "session_type": session_type,
+                            "turns": 0,
+                            "conversation": [],
+                            "filename": existing_path,
+                            "log_file": None,
+                            "duration": 0.0,
+                            "early_termination": False,
+                            "skipped": True,
+                            "skip_reason": "existing",
+                        }
+                    )
+                    continue
+
                 if i > 1:
                     print(
                         f"  Session {i - 1} finished. Starting session "
@@ -525,11 +645,10 @@ class ConversationRunner:
         persona_safe_names = {
             persona_token_for_transcript_stem(p["Name"]) for p in personas
         }
-        existing_keys = (
-            set(self._list_existing_conversations(persona_safe_names))
-            if self.resume
-            else set()
+        existing_list = (
+            self._list_existing_conversations(persona_safe_names) if self.resume else []
         )
+        complete_runs, sessions_by_run = self._build_resume_state(existing_list)
 
         # Create jobs for all conversations (each prompt run multiple times)
         jobs: List[Tuple[dict, int, int, int]] = []
@@ -539,7 +658,9 @@ class ConversationRunner:
         for persona in personas:
             for run in range(1, self.runs_per_prompt + 1):
                 persona_safe = persona_token_for_transcript_stem(persona["Name"])
-                if self._has_existing_transcript(persona_safe, run, existing_keys):
+                if self._has_existing_transcript(
+                    persona_safe, run, complete_runs, sessions_by_run
+                ):
                     skipped_results.append(
                         self._job_result(
                             index=conversation_index,
