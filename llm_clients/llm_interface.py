@@ -341,7 +341,7 @@ class LLMInterface(ABC):
         Returns [] by default (no custom signals).
         Override in subclasses to add provider-specific custom termination detection.
         Each signal is only checked against the response of the LLM that declares it.
-        Mostly it is meant to for provider LLM classes to allow for special termination.
+        Mostly meant for provider LLM classes to allow special termination handling.
         """
         return []
 
