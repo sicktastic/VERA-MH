@@ -97,7 +97,7 @@ class ConversationRunner:
 
         Supports:
         - `{tag}_{persona_safe}_{model}_run{N}.txt`
-        - `{tag}_{persona_safe}_{model}_run{N}_{session_index}_{session_type}.txt`
+        - `{tag}_{persona_safe}_{model}_run{N}_s{session_index}_{session_type}.txt`
         """
         if not filename.endswith(".txt"):
             return None
@@ -476,7 +476,7 @@ class ConversationRunner:
                 )
 
                 session_stem = (
-                    f"{filename_base}_{i}_{session_type}"
+                    f"{filename_base}_s{i}_{session_type}"
                     if multi_session
                     else filename_base
                 )

@@ -7,7 +7,7 @@ from typing import Any, Dict
 #   {tag}_{persona}_{model}_run{N}.txt
 #   {tag}_{persona}_{model}_run{N}_{session_index}_{session_type}.txt
 TRANSCRIPT_RUN_SUFFIX_RE = re.compile(
-    r"_run(?P<run>\d+)(?:_(?P<session_index>\d+)_(?P<session_type>[^./]+))?\.txt$"
+    r"_run(?P<run>\d+)(?:_s(?P<session_index>\d+)_(?P<session_type>[^./]+))?\.txt$"
 )
 
 
