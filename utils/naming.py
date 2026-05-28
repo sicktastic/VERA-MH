@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 # Suffix after first `_` in transcript basenames:
 #   {tag}_{persona}_{model}_run{N}.txt
-#   {tag}_{persona}_{model}_run{N}_{session_index}_{session_type}.txt
+#   {tag}_{persona}_{model}_run{N}_s{session_index}_{session_type}.txt
 TRANSCRIPT_RUN_SUFFIX_RE = re.compile(
     r"_run(?P<run>\d+)(?:_s(?P<session_index>\d+)_(?P<session_type>[^./]+))?\.txt$"
 )

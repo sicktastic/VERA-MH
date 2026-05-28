@@ -952,12 +952,12 @@ class TestConversationRunnerMultiple:
         basic_agent_config: Dict[str, Any],
         mock_llm_factory,
     ) -> None:
-        """Resume recognizes *_runN_{i}_{session_type}.txt transcript names."""
+        """Resume recognizes *_runN_s{i}_{session_type}.txt transcript names."""
         conv_folder = tmp_path / "conversations"
         conv_folder.mkdir(parents=True, exist_ok=True)
-        intake = conv_folder / "abc123_Persona1_mock-persona-model_run1_1_intake.txt"
+        intake = conv_folder / "abc123_Persona1_mock-persona-model_run1_s1_intake.txt"
         coaching = (
-            conv_folder / "def456_Persona1_mock-persona-model_run1_2_coaching.txt"
+            conv_folder / "def456_Persona1_mock-persona-model_run1_s2_coaching.txt"
         )
         intake.write_text("user: hi\n\nchatbot: hello\n", encoding="utf-8")
         coaching.write_text("user: hi\n\nchatbot: hello\n", encoding="utf-8")
@@ -996,7 +996,7 @@ class TestConversationRunnerMultiple:
         conv_folder = tmp_path / "conversations"
         conv_folder.mkdir(parents=True, exist_ok=True)
         intake_path = (
-            conv_folder / "abc123_Persona1_mock-persona-model_run1_1_intake.txt"
+            conv_folder / "abc123_Persona1_mock-persona-model_run1_s1_intake.txt"
         )
         intake_path.write_text("user: hi\n\nchatbot: hello\n", encoding="utf-8")
 
